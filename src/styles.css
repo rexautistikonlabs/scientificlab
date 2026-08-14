@@ -351,7 +351,7 @@ kbd {
   top: 54px;
   z-index: 30;
   width: 266px;
-  max-height: calc(100% - 200px);
+  max-height: calc(100% - 254px);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--glass);
@@ -926,18 +926,32 @@ kbd {
   gap: 10px;
   pointer-events: none;
 }
+/* Five columns, two rows.
+   Ten meters on one row leaves ~90 px per tile, which truncated every label and
+   every note — an instrument whose read-outs say "NETW…" is not an instrument.
+   Two rows of five give each meter its full label, its value and the one-line
+   note that says how to read it, for about 50 px of extra height. */
 .tm-meters {
   display: grid;
-  /* 100px min lets all ten meters sit on one row at 1440 px wide; below that they
-     wrap into two even rows rather than orphaning a single tile */
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: 6px;
   align-content: end;
 }
+@media (max-width: 1120px) {
+  .tm-meters {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 880px) {
+  .tm-meters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 .meter {
-  padding: 8px 10px 9px;
+  padding: 6px 9px 7px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--glass);
   backdrop-filter: blur(16px);
   box-shadow: var(--sh);
@@ -960,7 +974,7 @@ kbd {
 }
 .mt-val {
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   letter-spacing: -0.02em;
@@ -972,7 +986,7 @@ kbd {
 }
 .mt-track {
   height: 3px;
-  margin-top: 6px;
+  margin-top: 5px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.07);
   overflow: hidden;
@@ -984,8 +998,8 @@ kbd {
   transition: width 0.12s linear, background-color 0.4s;
 }
 .mt-note {
-  margin-top: 5px;
-  font-size: 9px;
+  margin-top: 4px;
+  font-size: 8.5px;
   color: var(--ink-3);
   white-space: nowrap;
   overflow: hidden;
@@ -1107,13 +1121,178 @@ kbd {
   font-family: var(--mono);
 }
 
+/* ---------- first-run coach marks ----------
+   No scrim and no blocking layer: the host is pointer-transparent and only the
+   card itself takes events, so a user who would rather just start exploring can
+   ignore the card entirely and click straight into the model. */
+.coach-host {
+  position: absolute;
+  inset: 0;
+  z-index: 75;
+  pointer-events: none;
+}
+.coach {
+  position: absolute;
+  width: 296px;
+  padding: 12px 14px 11px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--glass-2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: var(--sh), 0 0 0 1px rgba(79, 214, 224, 0.12);
+  pointer-events: auto;
+  transition: opacity 0.25s ease;
+}
+.coach::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--glass-2);
+  border: 1px solid var(--line-2);
+  transform: rotate(45deg);
+}
+.coach-below::after {
+  top: -5px;
+  left: calc(50% - 5px);
+  border-right: 0;
+  border-bottom: 0;
+}
+.coach-above::after {
+  bottom: -5px;
+  left: calc(50% - 5px);
+  border-left: 0;
+  border-top: 0;
+}
+.coach-right::after {
+  left: -5px;
+  top: calc(50% - 5px);
+  border-right: 0;
+  border-top: 0;
+}
+.coach-left::after {
+  right: -5px;
+  top: calc(50% - 5px);
+  border-left: 0;
+  border-bottom: 0;
+}
+.coach-step {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+  margin-bottom: 3px;
+}
+.coach h3 {
+  margin: 0 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.coach p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.coach p b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.coach-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 11px;
+}
+
+/* ---------- frame diagnostics ----------
+   Beside the systems panel rather than over the figure: a diagnostic read-out
+   should be readable at the same time as the thing it is describing. Monospace
+   and tabular so the digits do not jitter as they update. */
+.perfpanel {
+  position: absolute;
+  left: 290px;
+  top: 54px;
+  z-index: 28;
+  width: 196px;
+  padding: 7px 9px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(6, 9, 14, 0.78);
+  backdrop-filter: blur(12px);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  pointer-events: none;
+  box-shadow: var(--sh);
+}
+.perfpanel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.perfpanel header em {
+  font-style: normal;
+  color: var(--cyan);
+  letter-spacing: 0.06em;
+}
+.perfpanel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 8px;
+  margin: 0;
+}
+.perfpanel dt {
+  color: var(--ink-3);
+}
+.perfpanel dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-1);
+}
+.perfpanel dd.good {
+  color: var(--jade);
+}
+.perfpanel dd.warn {
+  color: var(--amber);
+}
+.perfpanel dd.bad {
+  color: var(--coral);
+}
+.pp-note {
+  margin: 5px 0 0;
+  font-size: 8.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.pp-note:empty {
+  display: none;
+}
+@media (max-width: 1180px) {
+  .perfpanel {
+    left: 12px;
+    top: auto;
+    bottom: 232px;
+  }
+}
+
 /* ---------- toasts ---------- */
 /* Above the telemetry rather than below the top bar: keeps transient messages
    clear of the subject's head, which is where the eye is. */
 .toasts {
   position: absolute;
   left: 50%;
-  bottom: 152px;
+  bottom: 212px;
   z-index: 70;
   transform: translateX(-50%);
   display: flex;
@@ -1223,6 +1402,53 @@ kbd {
 .ov-wide {
   max-width: 78ch;
   gap: 8px;
+}
+.ov-note {
+  margin: 0 0 12px;
+  max-width: 82ch;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.ov-note b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.ov-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+.ov-table {
+  border-collapse: collapse;
+  font-size: 10.5px;
+  min-width: 620px;
+}
+.ov-table th,
+.ov-table td {
+  padding: 5px 12px 5px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.ov-table th {
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ov-table td:nth-child(-n + 6) {
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.ov-table td b {
+  color: var(--ink);
+  font-family: var(--sans);
+}
+.ov-actions {
+  margin: 16px 0 0;
 }
 .ov-fine {
   margin: 18px 0 0;
@@ -1382,15 +1608,17 @@ kbd {
 }
 
 /* free-tier mark */
+/* Bottom-right, not bottom-centre: with the telemetry strip now two rows deep
+   the only free centre space is directly over the figure, and a free-tier mark
+   printed across the subject's legs looks like a mistake rather than a mark. */
 .watermark {
   position: absolute;
-  left: 50%;
-  bottom: 128px;
-  transform: translateX(-50%);
+  right: 18px;
+  bottom: 196px;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   gap: 1px;
   pointer-events: none;
   opacity: 0.34;

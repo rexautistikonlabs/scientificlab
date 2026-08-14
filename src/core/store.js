@@ -212,7 +212,10 @@ class Store extends Emitter {
       forceColor: true,
       network: false,
       exposure: 1.0,
+      /** 'auto' | 'low' | 'medium' | 'high' | 'ultra' */
       quality: 'auto',
+      /** on-screen frame diagnostics */
+      perfHud: false,
     };
 
     /** live restriction / load records applied by the user */

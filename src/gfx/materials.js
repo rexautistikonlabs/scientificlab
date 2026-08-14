@@ -26,6 +26,16 @@ export const GLOBAL = {
   uDispScale: { value: 1 },
   uScaleTier: { value: 0 },
   uCamPos: { value: new THREE.Vector3() },
+  /* Quality controls. Both are written once per tier change, never per frame.
+     uAlphaCut discards translucent fragments too faint to contribute, expressed
+     as a fraction of the layer's own opacity — see the cut in TISSUE_FRAG.
+     uCheapLight drops the specular term from the light rig. */
+  uAlphaCut: { value: 0.02 },
+  uCheapLight: { value: 0 },
+  /* Depth-of-interest slab, in world distance from the camera. uCutDist is the
+     near edge (0 disables the whole thing), uSlabFar the far edge. See cutFade(). */
+  uCutDist: { value: 0 },
+  uSlabFar: { value: 1e9 },
 };
 
 const COMMON_VERT = /* glsl */ `
@@ -79,29 +89,68 @@ const COMMON_VERT = /* glsl */ `
 const LIGHT_CHUNK = /* glsl */ `
   // Three-light instrument rig: cool key from upper front-left, warm fill from
   // lower right, and a cold back rim that separates layers in depth.
-  const vec3 KEY_DIR  = vec3(-0.42, 0.72, 0.55);
-  const vec3 FILL_DIR = vec3(0.66, -0.24, 0.34);
-  const vec3 RIM_DIR  = vec3(0.10, 0.30, -0.94);
+  // Directions are stored pre-normalised so no fragment pays for normalize().
+  const vec3 KEY_DIR  = vec3(-0.420566, 0.720971, 0.550742);
+  const vec3 FILL_DIR = vec3( 0.845873, -0.307590, 0.435752);
+  const vec3 RIM_DIR  = vec3( 0.100830, 0.302491, -0.947805);
   const vec3 KEY_COL  = vec3(1.00, 0.98, 0.94);
   const vec3 FILL_COL = vec3(0.36, 0.48, 0.62);
   const vec3 RIM_COL  = vec3(0.42, 0.72, 0.86);
 
+  uniform float uCheapLight;
+  uniform float uCutDist;
+  uniform float uSlabFar;
+
+  /* Depth-of-interest slab — the deep-scale section.
+     Two problems are solved by one function, and both of them cost a smoothstep
+     because the distance to the camera is already needed for the view vector.
+
+     In front: descending past the organ tier advances the near plane toward the
+     look-at point, which is what lets you look inside a cavity without deleting
+     the wall in front of it. As a raw near-plane clip that reads as a rendering
+     artefact — a triangle simply stops existing mid-surface. Fading the last
+     ~18 % of the approach to the plane reads the way a sectioned specimen does:
+     the tissue thins out and opens.
+
+     Behind: sectioning only the front is what made the deep tiers a coloured
+     wash. From twelve centimetres away, inside the trunk, the far wall of the
+     cavity is still drawn at full weight and fills the entire frame behind the
+     subject, so nothing has a silhouette to read against. Fading tissue well
+     past the focal depth turns that wash into a slab — the structure you flew to
+     sits in front of a dark ground instead of in front of more torso, which is
+     both how a real section looks and the only way the interior becomes legible.
+
+     Because both terms lower alpha before the alpha-cut test, this removes fill
+     rather than adding any. */
+  float cutFade(float camDist) {
+    if (uCutDist <= 0.0) return 1.0;
+    float front = smoothstep(uCutDist, uCutDist * 1.18, camDist);
+    float back = 1.0 - smoothstep(uSlabFar, uSlabFar * 1.55, camDist);
+    return front * back;
+  }
+
   vec3 shade(vec3 N, vec3 V, vec3 albedo, float rough, float spec) {
-    vec3 k = normalize(KEY_DIR);
-    vec3 f = normalize(FILL_DIR);
-    vec3 r = normalize(RIM_DIR);
-
-    float nf = max(dot(N, f), 0.0);
-    float nr = max(dot(N, r), 0.0);
-
     // wrapped diffuse — subsurface-ish softness without the cost
-    float wrapK = max((dot(N, k) + 0.32) / 1.32, 0.0);
+    float wrapK = max((dot(N, KEY_DIR) + 0.32) / 1.32, 0.0);
+
+    float nf = max(dot(N, FILL_DIR), 0.0);
+    float nr = max(dot(N, RIM_DIR), 0.0);
 
     vec3 diff = albedo * (KEY_COL * wrapK * 0.78 + FILL_COL * nf * 0.42 + RIM_COL * nr * 0.24);
     diff += albedo * 0.09; // ambient floor
 
+    /* Low tier: the full three-light rig, minus the specular term only.
+       The first version of this dropped the fill and rim lights and kept the
+       key — which is backwards. Two dot products cost almost nothing, while the
+       half-vector normalise and the pow() are the expensive instructions in this
+       function; and it is precisely the fill and the rim that give the muscle
+       bellies and the organ surfaces their form. Losing them flattened the body
+       into a red mass. Losing the specular highlight costs a small glint on the
+       wettest surfaces and nothing else. */
+    if (uCheapLight > 0.5) return diff;
+
     float shin = mix(96.0, 10.0, rough);
-    vec3 h = normalize(k + V);
+    vec3 h = normalize(KEY_DIR + V);
     float s = pow(max(dot(N, h), 0.0), shin) * spec;
     return diff + KEY_COL * s;
   }
@@ -146,6 +195,7 @@ const TISSUE_FRAG = /* glsl */ `
   uniform float uOverlay;     // 1 = a research dataset is painted on this structure
   uniform vec3  uOverlayColor;
   uniform vec3  uCamPos;
+  uniform float uAlphaCut;    // quality: see the cut below
 
   varying vec3  vWPos;
   varying vec3  vNrm;
@@ -155,9 +205,38 @@ const TISSUE_FRAG = /* glsl */ `
   ${LIGHT_CHUNK}
 
   void main() {
-    vec3 V = normalize(uCamPos - vWPos);
+    // the length is needed for the soft section, so the normalise is done by hand
+    vec3 toCam = uCamPos - vWPos;
+    float camDist = max(length(toCam), 1e-6);
+    vec3 V = toCam / camDist;
     vec3 N = normalize(vNrm);
     if (dot(N, V) < 0.0 && uFacing > 0.5) N = -N;
+
+    // fresnel rim: the single most useful cue for reading layered translucency
+    float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
+
+    /* Alpha is resolved before anything else is computed, so a fragment that
+       cannot contribute is discarded before it pays for the force ramp, the
+       striation and the light rig. The figure is a dozen overlapping translucent
+       shells, and under rim-dominant accumulation the face-on interior of each
+       one contributes very little; removing that overdraw keeps the silhouette,
+       which is where layered anatomy is legible in the first place.
+
+       The threshold is a fraction of the layer's *own* opacity, not an absolute
+       alpha. An absolute cut is arbitrarily harsher on faint layers: at a cut of
+       0.05 the skin envelope, whose interior sits around 0.011, disappeared
+       entirely while a dense muscle lost nothing. Scaling by uOpacity thins
+       every layer by the same proportion of its own silhouette, which also means
+       opaque tissue and the thin high-floor ribbons are never touched at all.
+       Selected and hovered structures are exempt outright, so nothing the user
+       is actually working with can be thinned. */
+    float edge = uXrayFloor + (1.0 - uXrayFloor) * fres;
+    float alpha = uXray > 0.5
+      ? clamp(uOpacity * edge, 0.0, 1.0)
+      : clamp(uOpacity + fres * uOpacity * 0.5, 0.0, 1.0);
+    alpha *= cutFade(camDist);
+    float cut = (uHighlight + uHover > 0.001) ? 0.004 : max(0.004, uAlphaCut * uOpacity);
+    if (alpha < cut) discard;
 
     vec3 albedo = forceRamp(uColor, vLoad, uForceColor * uForceAmount);
 
@@ -173,25 +252,18 @@ const TISSUE_FRAG = /* glsl */ `
       albedo *= mix(1.0, 0.78 + 0.34 * st, uStripe);
     }
 
-    // fresnel rim: the single most useful cue for reading layered translucency
-    float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
-
     vec3 col;
-    float alpha;
     if (uXray > 0.5) {
       // Rim-dominant accumulation. A dozen translucent shells overlap at any
       // given pixel; if each contributed its full shaded value the sum would
       // clip to white. Weighting by fresnel means interiors are nearly free and
       // only silhouette edges register, which is what makes layered anatomy
       // readable — and it is order-independent, so no sorting is needed.
-      float edge = uXrayFloor + (1.0 - uXrayFloor) * fres;
       col = shade(N, V, albedo, uRough, uSpec * 0.5) * (0.22 + 0.55 * fres);
       col += albedo * fres * uRim * 0.55;
-      alpha = clamp(uOpacity * edge, 0.0, 1.0);
     } else {
       col = shade(N, V, albedo, uRough, uSpec);
       col += albedo * fres * uRim * 0.6;
-      alpha = clamp(uOpacity + fres * uOpacity * 0.5, 0.0, 1.0);
     }
     col += albedo * uEmissive;
 
@@ -238,6 +310,10 @@ const BASE_UNIFORMS = () => ({
   uBreath: GLOBAL.uBreath,
   uForceColor: GLOBAL.uForceColor,
   uDispScale: GLOBAL.uDispScale,
+  uAlphaCut: GLOBAL.uAlphaCut,
+  uCheapLight: GLOBAL.uCheapLight,
+  uCutDist: GLOBAL.uCutDist,
+  uSlabFar: GLOBAL.uSlabFar,
 });
 
 /**
@@ -284,6 +360,9 @@ export function tissueMaterial(o = {}) {
   }
   m.userData.mode = o.mode || 'solid';
   m.userData.baseOpacity = o.opacity ?? 1;
+  /* Recorded so the quality tier can drop back faces on weak hardware and put
+     them back afterwards without the builders having to know about quality. */
+  m.userData.wantDoubleSide = !!o.doubleSide;
   return m;
 }
 
@@ -314,7 +393,9 @@ const NERVE_FRAG = /* glsl */ `
   ${LIGHT_CHUNK}
 
   void main() {
-    vec3 V = normalize(uCamPos - vWPos);
+    vec3 toCam = uCamPos - vWPos;
+    float camDist = max(length(toCam), 1e-6);
+    vec3 V = toCam / camDist;
     vec3 N = normalize(vNrm);
     vec3 albedo = forceRamp(uColor, vLoad, 0.45);
     vec3 col = shade(N, V, albedo, 0.4, 0.5);
@@ -337,7 +418,7 @@ const NERVE_FRAG = /* glsl */ `
 
     col += vec3(0.35, 0.94, 1.0) * uHighlight * (0.6 + fres);
     col += vec3(0.6, 0.9, 1.0) * uHover * 0.3;
-    float alpha = clamp(uOpacity + fres * 0.4, 0.0, 1.0);
+    float alpha = clamp(uOpacity + fres * 0.4, 0.0, 1.0) * cutFade(camDist);
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(col, alpha);
     #include <colorspace_fragment>
@@ -391,7 +472,9 @@ const VESSEL_FRAG = /* glsl */ `
   ${LIGHT_CHUNK}
 
   void main() {
-    vec3 V = normalize(uCamPos - vWPos);
+    vec3 toCam = uCamPos - vWPos;
+    float camDist = max(length(toCam), 1e-6);
+    vec3 V = toCam / camDist;
     vec3 N = normalize(vNrm);
     vec3 albedo = forceRamp(uColor, vLoad, 0.35);
     vec3 col = shade(N, V, albedo, 0.32, 0.6);
@@ -409,7 +492,7 @@ const VESSEL_FRAG = /* glsl */ `
     col += vec3(0.6, 0.9, 1.0) * uHover * 0.28;
     // rim-weighted like the other accumulating layers, with a high floor because
     // vessels are thin and must stay visible along their length
-    float alpha = clamp(uOpacity * (0.5 + 0.5 * fres), 0.0, 1.0);
+    float alpha = clamp(uOpacity * (0.5 + 0.5 * fres), 0.0, 1.0) * cutFade(camDist);
     col *= 0.62;
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(col, alpha);
@@ -528,6 +611,9 @@ export function receptorMaterial(o = {}) {
       uTime: GLOBAL.uTime,
       uDispScale: GLOBAL.uDispScale,
       uCamPos: GLOBAL.uCamPos,
+      uCheapLight: GLOBAL.uCheapLight,
+      uCutDist: GLOBAL.uCutDist,
+      uSlabFar: GLOBAL.uSlabFar,
     },
     transparent: true,
     depthWrite: true,

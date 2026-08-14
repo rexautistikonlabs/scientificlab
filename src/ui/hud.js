@@ -140,6 +140,83 @@ export class Hud {
     this._fpsShown = 0;
     this._resizeTrace();
     window.addEventListener('resize', () => this._resizeTrace());
+
+    this._buildPerfPanel();
+  }
+
+  /* ============================================================
+     Frame diagnostics
+     ============================================================ */
+
+  _buildPerfPanel() {
+    this.perfPanel = el('#perfpanel');
+    this.perfTier = el('#pp-tier');
+    this.perfNote = el('#pp-note');
+    const host = el('#pp-rows');
+    host.innerHTML = '';
+    this.perfRows = new Map();
+    const rows = [
+      ['fps', 'fps'],
+      ['frame', 'frame'],
+      ['cpu', 'sim'],
+      ['scale', 'scale'],
+      ['res', 'buffer'],
+      ['draws', 'draws'],
+      ['tris', 'tris'],
+      ['field', 'endings'],
+      ['beads', 'beads'],
+      ['geom', 'geometry'],
+    ];
+    for (const [id, label] of rows) {
+      host.appendChild(make('dt', '', label));
+      const dd = make('dd', '', '—');
+      host.appendChild(dd);
+      this.perfRows.set(id, dd);
+    }
+  }
+
+  perfVisible(on) {
+    if (this.perfPanel) this.perfPanel.hidden = !on;
+  }
+
+  /** Actual render-buffer dimensions, which are the render scale made concrete. */
+  setBufferSize(w, h) {
+    this._buffer = `${w}×${h}`;
+  }
+
+  _setPerfRow(id, text, grade) {
+    const dd = this.perfRows.get(id);
+    if (!dd) return;
+    if (dd.textContent !== text) dd.textContent = text;
+    const cls = grade || '';
+    if (dd.className !== cls) dd.className = cls;
+  }
+
+  /**
+   * Frame diagnostics. Fed at the UI cadence, not per frame — reading
+   * `renderer.info` is free but writing ten DOM nodes 60 times a second is not,
+   * and the point of a performance panel is to not be part of the problem.
+   */
+  updatePerf({ quality, info, cpuMs, endings, beads }) {
+    if (!this.perfPanel || this.perfPanel.hidden) return;
+    const buffer = this._buffer || '—';
+    const fps = quality.fps;
+    this.perfTier.textContent = `${quality.tierName}${quality.mode === 'auto' ? ' · auto' : ''}`;
+    this._setPerfRow('fps', fps.toFixed(0), fps < 26 ? 'bad' : fps < 48 ? 'warn' : 'good');
+    this._setPerfRow('frame', `${quality.frameMs.toFixed(1)} ms`);
+    this._setPerfRow('cpu', `${cpuMs.toFixed(2)} ms`);
+    this._setPerfRow('scale', `${quality.dpr.toFixed(2)}×`, quality.dpr < quality.cap - 0.02 ? 'warn' : '');
+    this._setPerfRow('res', buffer);
+    this._setPerfRow('draws', String(info.render.calls));
+    this._setPerfRow('tris', `${(info.render.triangles / 1000).toFixed(0)}k`);
+    this._setPerfRow('field', String(endings));
+    this._setPerfRow('beads', String(beads));
+    this._setPerfRow('geom', quality.geometry);
+    this.perfNote.textContent = quality.shortfall
+      ? 'Geometry was tessellated for the detected hardware; reload to rebuild it at full detail.'
+      : quality.mode === 'auto'
+        ? `holding 60 fps · last change: ${quality.action}`
+        : 'fixed tier — Auto will not adjust';
   }
 
   _buildMeters() {

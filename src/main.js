@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { store, SCALES, TOOLS } from './core/store.js';
 import { Controls } from './core/controls.js';
 import { ScaleManager } from './core/scales.js';
+import { QualityController, detectHardware, TIERS } from './core/quality.js';
 import { clamp, el, approach } from './core/util.js';
 import { PostFX } from './gfx/postfx.js';
 import { GLOBAL, backdrop, groundPad } from './gfx/materials.js';
@@ -24,6 +25,7 @@ import { buildNetwork, Tensegrity } from './sim/tensegrity.js';
 import { Physiology } from './sim/physiology.js';
 import { Afferent } from './sim/afferent.js';
 import { buildBody } from './anatomy/index.js';
+import { setReceptorDensity } from './anatomy/receptors.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
 import { RECEPTORS } from './anatomy/info.js';
 import { IdRegistry } from './platform/ids.js';
@@ -36,6 +38,7 @@ import { Hud } from './ui/hud.js';
 import { Panels } from './ui/panels.js';
 import { PremiumUI } from './ui/premium.js';
 import { Workspace } from './ui/workspace.js';
+import { Onboarding } from './ui/onboarding.js';
 
 const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
 
@@ -76,22 +79,30 @@ async function main() {
     return;
   }
 
-  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  const cores = navigator.hardwareConcurrency || 4;
-  const quality = { high: !mobile && cores >= 6 };
+  /* Hardware detection sets the starting tier and — the one irreversible
+     decision — the tessellation level the geometry is built at. Everything else
+     the quality controller changes is a uniform, a target size or a draw range. */
+  const detected = detectHardware(renderer);
+  const quality = { high: detected.geometry };
 
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping; // handled in the composite pass
   renderer.setClearColor(0x04060a, 1);
-
-  let dpr = Math.min(window.devicePixelRatio || 1, quality.high ? 1.75 : 1.25);
   renderer.setPixelRatio(1); // the post chain owns resolution
+  /* A frame is five or more render calls (scene, bright, four blurs, composite),
+     and three.js resets its counters on every one of them. Without this the
+     diagnostics would report the fullscreen composite quad and nothing else. */
+  renderer.info.autoReset = false;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.001, 40);
   scene.add(backdrop(), groundPad());
 
-  const postfx = new PostFX(renderer, { samples: quality.high ? 4 : 2 });
+  const startTier = TIERS[detected.tier];
+  let dpr = Math.min(window.devicePixelRatio || 1, startTier.dpr);
+  let viewW = 0;
+  let viewH = 0;
+  const postfx = new PostFX(renderer, { samples: startTier.msaa, levels: startTier.bloomLevels });
 
   await setBoot('assembling tension network', 0.05);
 
@@ -155,6 +166,32 @@ async function main() {
   const scales = new ScaleManager({ store, controls, registry, receptors, micro, signals, camera });
   scales.applyEntitlements();
 
+  /* ============================================================
+     Quality
+     ============================================================ */
+
+  /**
+   * Push a tier into the renderer. Every line here is a uniform write, a target
+   * size or a draw range — there is no geometry work and no per-mesh CPU work,
+   * which is what makes a tier change safe to do mid-flight.
+   */
+  function applyQualityTier(tier) {
+    GLOBAL.uAlphaCut.value = tier.alphaCut;
+    GLOBAL.uCheapLight.value = tier.cheapLight;
+    registry.setShellSides(tier.doubleSide);
+    setReceptorDensity(receptors.populations, tier.receptors);
+    signals.setDensity(tier.particles);
+    signals.setSizeFactor(tier.signalSize);
+    postfx.setSamples(tier.msaa);
+    postfx.setLevels(tier.bloomLevels);
+    postfx.set('uChroma', tier.chroma);
+    postfx.set('uGrain', tier.grain);
+  }
+
+  /* Instantiated below, once the HUD exists: applying a tier resizes the render
+     targets, and the HUD reports the buffer size. */
+  let qualityCtl = null;
+
   /* ---------------- tools ---------------- */
   const overlayHost = el('#overlay-layer');
   const measures = new Measurements({ registry, props, solver, camera, canvas, overlayHost });
@@ -173,6 +210,14 @@ async function main() {
 
   /* ---------------- ui ---------------- */
   const hud = new Hud(store, scales, afferent, physio, solver);
+
+  qualityCtl = new QualityController({
+    detected,
+    onTier: (tier) => applyQualityTier(tier),
+    onScale: (v) => setDpr(v),
+  });
+  qualityCtl.setMode(store.render.quality);
+
   const actions = {};
   const premium = new PremiumUI({ hud, onTierChange: () => applyTier() });
   // a click on a locked meter or the locked trace opens the plan, naming the
@@ -196,6 +241,7 @@ async function main() {
     physio,
   });
   const workspace = new Workspace({ store, props, projects, measures, annotations, hud, premium, actions });
+  const onboarding = new Onboarding({ premium });
 
   hud.onScaleClick((i) => scales.goToTier(i));
 
@@ -239,6 +285,23 @@ async function main() {
   let lastHoverAt = 0;
 
   store.on('layers', () => registry.applyLayers(store, store.scaleFloat));
+
+  store.on('render', (k) => {
+    if (k === 'quality') {
+      qualityCtl.setMode(store.render.quality);
+      hud.toast(
+        store.render.quality === 'auto'
+          ? 'Quality <b>Auto</b> — holding 60 fps by adjusting render scale, then tier'
+          : `Quality fixed at <b>${qualityCtl.tier.name}</b> — ${qualityCtl.tier.blurb}`,
+        3600
+      );
+      if (qualityCtl.geometryShortfall) {
+        hud.toast('Geometry was tessellated for this machine — reload to rebuild it at full detail', 5200);
+      }
+    } else if (k === 'perfHud') {
+      hud.perfVisible(store.render.perfHud);
+    }
+  });
 
   function pickAt(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
@@ -585,6 +648,17 @@ async function main() {
   help.addEventListener('click', (e) => {
     if (e.target === help) closeHelp();
   });
+  // the top-bar frame-rate chip is the obvious place to reach for when a frame
+  // rate looks wrong, so it opens the diagnostics rather than just reporting
+  el('#perf').addEventListener('click', () => {
+    store.setRender('perfHud', !store.render.perfHud);
+    panels.syncRenderControls();
+  });
+  el('#btn-replay-intro').addEventListener('click', () => {
+    closeHelp();
+    Onboarding.forget();
+    onboarding.start({ force: true });
+  });
 
   const playBtn = el('#btn-play');
   const syncPlay = () => {
@@ -608,11 +682,17 @@ async function main() {
     }
     switch (k.toLowerCase()) {
       case 'escape':
-        if (!help.hidden) closeHelp();
+        if (!el('#coach').hidden) onboarding.stop();
+        else if (!help.hidden) closeHelp();
         else store.clearSelection();
         break;
       case 'f':
-        actions.frameSelection();
+        if (e.shiftKey) {
+          store.setRender('perfHud', !store.render.perfHud);
+          panels.syncRenderControls?.();
+        } else {
+          actions.frameSelection();
+        }
         break;
       case 'r':
         for (const s of registry.list) s.hidden = false;
@@ -664,27 +744,77 @@ async function main() {
      Resize
      ============================================================ */
 
-  function resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+  function resize(force = false) {
+    const w = Math.max(1, window.innerWidth);
+    const h = Math.max(1, window.innerHeight);
+    if (!force && w === viewW && h === viewH) return;
+    viewW = w;
+    viewH = h;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, true);
     postfx.setSize(w, h, dpr);
     signals.setPixelRatio(dpr);
+    hud.setBufferSize(postfx.w, postfx.h);
   }
-  window.addEventListener('resize', resize);
-  resize();
+
+  /** Change the render scale. Reallocates five render targets, so it is debounced
+      by the quality controller's cooldowns rather than called freely. */
+  function setDpr(v) {
+    const next = clamp(v, 0.4, 3);
+    if (Math.abs(next - dpr) < 0.005) return;
+    dpr = next;
+    resize(true);
+  }
+
+  /* Resize is coalesced to one call per frame. A dragged window edge or an
+     orientation change fires continuously, and each one reallocates the MSAA
+     target and four blur targets — doing that per event is how a resize turns
+     into a multi-second stall. */
+  let resizePending = false;
+  window.addEventListener('resize', () => {
+    resizePending = true;
+  });
+  resize(true);
 
   /* ============================================================
      Frame loop
      ============================================================ */
 
   let last = performance.now();
-  let frameAvg = 1 / 60;
   let uiAcc = 0;
-  let dprCooldown = 2;
+  let cpuMs = 0;
+  let hidden = document.hidden;
+
+  /* Tab visibility. requestAnimationFrame stops in a background tab, so the
+     first frame back would otherwise carry the entire hidden interval as one dt.
+     The frame clock is reset on return and the quality controller is told to
+     ignore the spike, so a session left in another tab for an hour resumes
+     exactly where it was rather than exploding the solver or being demoted to
+     the lowest tier for a frame that was never rendered. */
+  document.addEventListener('visibilitychange', () => {
+    hidden = document.hidden;
+    if (!hidden) {
+      last = performance.now();
+      resizePending = true; // the window may have been resized while hidden
+    }
+  });
+
+  /* WebGL context loss — a laptop waking from sleep, or a driver reset. Without
+     this the canvas silently freezes with no indication why. */
+  canvas.addEventListener(
+    'webglcontextlost',
+    (e) => {
+      e.preventDefault();
+      hud.toast('<b>Graphics context lost</b> — reload to restore the view', 9000);
+    },
+    false
+  );
+  canvas.addEventListener('webglcontextrestored', () => {
+    resize(true);
+    hud.toast('Graphics context restored', 3000);
+  });
 
   /* ---------------- apply the licence, then reveal ---------------- */
   applyTier();
@@ -695,44 +825,64 @@ async function main() {
     el('#boot').remove();
   }, 900);
   for (const id of ['#topbar', '#panel-left', '#panel-right', '#telemetry', '#scalebar']) el(id).hidden = false;
-  hud.toast(
-    entitlements.isPremium
-      ? 'Press <b>?</b> for the reference · wheel to traverse scale · click any structure'
-      : 'Explorer edition — press <b>?</b> for the reference, or <b>P</b> to see what Professional adds',
-    5600
-  );
+  hud.perfVisible(store.render.perfHud);
+
+  /* First run gets the coach marks; every later visit gets the one-line prompt.
+     Showing both would be twice as much reading for half as much information. */
+  if (!Onboarding.seen) {
+    setTimeout(() => onboarding.start(), 900);
+  } else {
+    hud.toast(
+      entitlements.isPremium
+        ? 'Press <b>?</b> for the reference · wheel to traverse scale · click any structure'
+        : 'Explorer edition — press <b>?</b> for the reference, or <b>P</b> to see what Professional adds',
+      5600
+    );
+  }
 
   function frame() {
-    const now = performance.now();
-    const raw = Math.min(0.25, (now - last) / 1000);
-    last = now;
-    const dt = Math.min(raw, 1 / 20);
-    frameAvg = frameAvg * 0.94 + raw * 0.06;
+    requestAnimationFrame(frame);
 
-    /* adaptive resolution: protect the frame rate before anything else */
-    dprCooldown -= raw;
-    if (store.render.quality === 'auto' && dprCooldown <= 0) {
-      const target = 1 / 58;
-      if (frameAvg > 1 / 42 && dpr > 0.72) {
-        dpr = Math.max(0.72, dpr - 0.12);
-        resize();
-        dprCooldown = 1.6;
-      } else if (frameAvg < target && dpr < (quality.high ? 1.75 : 1.25)) {
-        dpr = Math.min(quality.high ? 1.75 : 1.25, dpr + 0.08);
-        resize();
-        dprCooldown = 2.2;
-      }
+    const now = performance.now();
+    // Math.max guards a non-monotonic clock: a negative timestep would run the
+    // constraint solver backwards, and nothing downstream checks for that.
+    const trueDt = Math.max(0, (now - last) / 1000);
+    const raw = Math.min(0.25, trueDt);
+    last = now;
+    // some browsers keep ticking a hidden tab at ~1 Hz; there is nothing to show
+    if (hidden) return;
+    /* The simulation timestep is clamped well below the frame time it is given.
+       On a machine holding 20 fps the model runs slightly slow rather than taking
+       50 ms steps the constraint solver cannot integrate stably — a visualisation
+       that drifts a little in time is honest; one that detonates is not. */
+    const dt = Math.min(raw, 1 / 20);
+
+    if (resizePending) {
+      resizePending = false;
+      resize();
     }
 
+    /* Adaptive quality first: it measures the frame we have just displayed, and
+       acting on it before doing this frame's work is what keeps the response
+       within a frame of the problem. */
+    qualityCtl.update(trueDt);
+
     /* ---- simulation ---- */
+    const cpuStart = performance.now();
     const speed = store.physio.speed;
     if (store.physio.running) physio.step(dt, speed);
     solver.step(dt * (store.physio.running ? 1 : 0.35) || 1e-4);
     afferent.step(dt * (store.physio.running ? speed : 0.15));
 
-    /* ---- camera & scale ---- */
-    controls.update(dt);
-    scales.update(dt);
+    /* ---- camera & scale ----
+       Wall-clock, not the clamped simulation timestep. The camera is
+       presentation, not physics: a two-second cinematic descent has to take two
+       seconds whether the machine is drawing sixty frames a second or eight.
+       Driving it from the clamped dt made every transition run five times too
+       long on slow hardware — precisely where an unfinished move is most likely
+       to be read as the application having hung. */
+    controls.update(raw);
+    scales.update(raw);
 
     /* ---- global shader state ---- */
     GLOBAL.uTime.value += dt * (store.physio.running ? speed : 0.15);
@@ -742,13 +892,25 @@ async function main() {
     // survive a licence downgrade just because its flag is still set
     GLOBAL.uForceColor.value = store.renderEnabled('forceColor') ? 1 : 0;
     GLOBAL.uCamPos.value.copy(camera.position);
+    /* Depth-of-interest slab. Active only once the near plane has begun advancing
+       into the body — from the organ tier inward — so the coarse views are
+       untouched and read exactly as before. The far edge sits a little past the
+       look-at point, which puts the structure you flew to in front of the
+       backdrop rather than in front of the rest of the torso. */
+    if (controls.nearFrac > 0.02) {
+      const focal = camera.position.distanceTo(controls.target);
+      GLOBAL.uCutDist.value = camera.near;
+      GLOBAL.uSlabFar.value = focal * 1.3;
+    } else {
+      GLOBAL.uCutDist.value = 0;
+    }
     // deformation is exaggerated slightly at coarse scales so millimetre motion
     // is readable from across the room, and true at close range
     GLOBAL.uDispScale.value = approach(
       GLOBAL.uDispScale.value,
       scales.tier < 1.5 ? 1.5 : scales.tier < 2.6 ? 1.15 : 1.0,
       3,
-      dt
+      raw
     );
 
     /* ---- signal + overlay + world-space tools ---- */
@@ -791,8 +953,13 @@ async function main() {
       }
     }
 
+    cpuMs = cpuMs * 0.9 + (performance.now() - cpuStart) * 0.1;
+
     /* ---- post ---- */
-    postfx.set('uBloom', store.render.bloom);
+    renderer.info.reset();
+    // the tier scales the user's bloom setting rather than replacing it, so the
+    // slider keeps meaning the same thing on every machine
+    postfx.set('uBloom', store.render.bloom * qualityCtl.tier.bloom);
     postfx.set('uExposure', store.render.exposure);
     postfx.render(scene, camera, GLOBAL.uTime.value);
 
@@ -801,10 +968,15 @@ async function main() {
     if (uiAcc > 1 / 24) {
       hud.update(uiAcc);
       panels.tick();
+      hud.updatePerf({
+        quality: qualityCtl.stats(),
+        info: renderer.info,
+        cpuMs,
+        endings: receptors.populations.reduce((n, p) => n + (p.drawn ?? p.count), 0),
+        beads: signals.drawn,
+      });
       uiAcc = 0;
     }
-
-    requestAnimationFrame(frame);
   }
 
   requestAnimationFrame(frame);
@@ -824,7 +996,14 @@ async function main() {
     scales,
     controls,
     scene,
+    camera,
     renderer,
+    /* rendering */
+    signals,
+    overlay,
+    postfx,
+    quality: qualityCtl,
+    setDpr,
     /* platform */
     ids,
     props,

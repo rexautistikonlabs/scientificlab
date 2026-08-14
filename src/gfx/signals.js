@@ -206,17 +206,24 @@ export class SignalStreams {
     this.stateTex.minFilter = this.stateTex.magFilter = THREE.NearestFilter;
     this.stateTex.needsUpdate = true;
 
-    /* ---- particles ---- */
-    const per = quality?.high ? 96 : 52;
+    /* ---- particles ----
+       Interleaved by position-along-path rather than grouped by path: index
+       `k * P + pi` means the first n·P vertices are n evenly spaced beads on
+       *every* pathway, so the quality tier can subsample the field with a single
+       draw-range change and still show all twenty routes. Grouping by path would
+       have made a reduced draw range silently drop whole pathways. */
+    const per = 96;
+    this.perPath = per;
+    this.pathCount = P;
     const count = per * P;
     const aT = new Float32Array(count);
     const aPath = new Float32Array(count);
     const aSeed = new Float32Array(count);
     const pos = new Float32Array(count * 3); // unused but required by three
     const r = rng(4242);
-    for (let pi = 0; pi < P; pi++) {
-      for (let k = 0; k < per; k++) {
-        const i = pi * per + k;
+    for (let k = 0; k < per; k++) {
+      for (let pi = 0; pi < P; pi++) {
+        const i = k * P + pi;
         aT[i] = k / per;
         aPath[i] = pi;
         aSeed[i] = r();
@@ -238,15 +245,40 @@ export class SignalStreams {
     this.points.frustumCulled = false;
     this.points.renderOrder = 20;
     this.points.name = 'afferentSignals';
+
+    this.density = 1;
+    this.sizeFactor = 1;
+    this._scaleFloat = 0;
+    this.setDensity(quality?.high === false ? 0.55 : 1);
   }
 
   setPixelRatio(v) {
     this.material.uniforms.uPixelRatio.value = v;
   }
 
+  /**
+   * Fraction of the particle field to draw, 0..1. Additive sprites are pure
+   * fill cost, so this is one of the cheapest levers the quality tier has; the
+   * stream stays legible well below half density because spacing, not count,
+   * is what encodes firing rate.
+   */
+  setDensity(frac) {
+    this.density = clamp(frac, 0.08, 1);
+    const n = Math.max(6, Math.round(this.perPath * this.density));
+    this.drawn = n * this.pathCount;
+    this.points.geometry.setDrawRange(0, this.drawn);
+  }
+
+  /** Bead size multiplier from the quality tier. */
+  setSizeFactor(f) {
+    this.sizeFactor = f;
+    this.setScale(this._scaleFloat);
+  }
+
   /** Beads grow modestly at deep tiers, where individual events are the subject. */
   setScale(scaleFloat) {
-    this.material.uniforms.uSize.value = 4.0 + clamp(scaleFloat, 0, 4) * 0.85;
+    this._scaleFloat = scaleFloat;
+    this.material.uniforms.uSize.value = (4.0 + clamp(scaleFloat, 0, 4) * 0.85) * this.sizeFactor;
   }
 
   update(store) {

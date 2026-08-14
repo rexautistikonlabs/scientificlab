@@ -366,6 +366,11 @@ export class Panels {
     });
   }
 
+  /** Reflect render state a keyboard shortcut may have changed behind the panel. */
+  syncRenderControls() {
+    if (this._perfCheck) this._perfCheck.checked = this.store.render.perfHud;
+  }
+
   _buildRenderControls() {
     const host = el('#render-controls');
     host.innerHTML = '';
@@ -415,13 +420,23 @@ export class Panels {
     this._segmented(host, {
       label: 'Quality',
       options: [
-        { id: 'low', name: 'Fast' },
         { id: 'auto', name: 'Auto' },
-        { id: 'high', name: 'Full' },
+        { id: 'low', name: 'Low' },
+        { id: 'medium', name: 'Med' },
+        { id: 'high', name: 'High' },
+        { id: 'ultra', name: 'Ultra' },
       ],
       value: r.quality,
       onPick: (v) => this.store.setRender('quality', v),
-      title: 'Render resolution and anti-aliasing budget',
+      title:
+        'Auto measures the frame time and holds 60 fps by moving render scale first, then tier. ' +
+        'Pick a tier to fix it.',
+    });
+    this._perfCheck = this._check(host, {
+      label: 'Performance read-out',
+      value: r.perfHud,
+      onChange: (v) => this.store.setRender('perfHud', v),
+      title: 'Frame time, draw calls, triangles, render scale and the active quality tier (⇧F)',
     });
   }
 

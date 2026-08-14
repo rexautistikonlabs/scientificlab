@@ -24,7 +24,20 @@ import { bodyRegionAt } from '../platform/ids.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
-/** Per-class population sizes (scaled by quality) and their seeding strategy. */
+/**
+ * Fraction of the nominal field size actually instantiated.
+ *
+ * Fixed, deliberately: every ending carries a permanent anatomical ID, so the
+ * size of these populations determines the ID manifest. Making it depend on the
+ * host's hardware would mean two machines disagreeing about which IDs exist,
+ * and a project or dataset authored on one would fail to resolve on the other.
+ * Identity is a contract; it cannot be a quality setting. Runtime density is
+ * handled by `setReceptorDensity`, which changes how many of these instances are
+ * drawn without changing which ones exist.
+ */
+const RECEPTOR_DENSITY = 0.55;
+
+/** Per-class population sizes and their seeding strategy. */
 const FIELDS = {
   pacinian: { n: 220, sites: ['subcutis', 'deepFascia', 'periosteum', 'mesentery'], size: 1.0 },
   meissner: { n: 420, sites: ['glabrous', 'skin'], size: 0.62 },
@@ -247,7 +260,7 @@ function glyph(id) {
    ------------------------------------------------------------ */
 
 export function buildReceptors(ctx) {
-  const { registry, solver, locator, q, mkStructure, ids } = ctx;
+  const { registry, solver, locator, mkStructure, ids } = ctx;
   const group = new THREE.Group();
   group.name = 'receptorFields';
 
@@ -259,7 +272,7 @@ export function buildReceptors(ctx) {
   RECEPTOR_ORDER.forEach((id, ci) => {
     const def = RECEPTORS[id];
     const cfg = FIELDS[id];
-    const count = Math.max(30, Math.round(cfg.n * (q.high ? 1 : 0.55)));
+    const count = Math.max(30, Math.round(cfg.n * RECEPTOR_DENSITY));
     const r = rng(9173 + ci * 7717);
 
     const offsets = new Float32Array(count * 3);
@@ -346,6 +359,7 @@ export function buildReceptors(ctx) {
       id,
       def,
       count,
+      drawn: count,
       mesh,
       material,
       structure: s,
@@ -373,6 +387,23 @@ export function buildReceptors(ctx) {
   }
 
   return { group, populations };
+}
+
+/**
+ * Draw a fraction of each instanced field. The instances themselves — and
+ * therefore their IDs, their property bags and anything bound to them — are
+ * untouched; only `instanceCount` moves, so this is a single integer per class
+ * per tier change and costs nothing per frame.
+ *
+ * Instances are seeded from a deterministic sequence that walks the whole tissue
+ * site list, so a prefix of the field is spatially spread rather than clustered.
+ */
+export function setReceptorDensity(populations, frac) {
+  const f = clamp(frac, 0.05, 1);
+  for (const pop of populations) {
+    pop.drawn = Math.max(8, Math.round(pop.count * f));
+    pop.mesh.geometry.instanceCount = pop.drawn;
+  }
 }
 
 /** Resolve a receptor instance ID to its world position. */

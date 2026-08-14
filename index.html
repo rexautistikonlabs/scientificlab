@@ -50,9 +50,9 @@
             <span class="ic-pause"></span><span class="tb-btn-lbl">Running</span>
           </button>
           <button class="tb-btn" id="btn-help" title="Reference &amp; shortcuts (?)">?</button>
-          <div class="tb-perf" id="perf" title="Renderer performance">
+          <button class="tb-perf" id="perf" title="Frame rate — click for the full diagnostics (⇧F)">
             <span id="perf-fps">—</span><small>fps</small>
-          </div>
+          </button>
         </div>
       </header>
 
@@ -162,6 +162,16 @@
       <!-- world-space overlays: measurement labels and annotations -->
       <div id="overlay-layer" class="overlay-layer"></div>
 
+      <!-- Frame diagnostics (Render ▸ Performance read-out, or ⇧F) -->
+      <div id="perfpanel" class="perfpanel" hidden>
+        <header>
+          <span>Frame</span>
+          <em id="pp-tier">—</em>
+        </header>
+        <dl id="pp-rows"></dl>
+        <p class="pp-note" id="pp-note"></p>
+      </div>
+
       <!-- free-tier mark -->
       <div id="watermark" class="watermark" hidden>
         <span>CONTINUUM</span><em>Explorer edition · macro anatomy</em>
@@ -189,6 +199,9 @@
 
       <!-- Toast -->
       <div id="toasts" class="toasts"></div>
+
+      <!-- First-run coach marks -->
+      <div id="coach" class="coach-host" hidden></div>
 
       <!-- Help -->
       <div id="help" class="overlay" hidden>
@@ -237,9 +250,42 @@
               <ul class="ov-list">
                 <li><kbd>D</kbd> distance measurement · <kbd>N</kbd> add a note</li>
                 <li><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> save the scene · <kbd>P</kbd> plan</li>
+                <li><kbd>Shift</kbd>+<kbd>F</kbd> frame diagnostics</li>
               </ul>
             </div>
           </div>
+
+          <h3 style="margin-top:18px">Performance &amp; quality</h3>
+          <p class="ov-note">
+            The model is fragment-bound rather than geometry-bound: a dozen translucent layers overlap at
+            every pixel of the figure, while the simulation itself costs well under a millisecond a frame.
+            <b>Render ▸ Quality</b> therefore works mostly on how many pixels are shaded and how expensive
+            each one is. <b>Auto</b> measures the real frame time and holds 60&nbsp;fps by moving the render
+            scale first — the least visible lever — and only changing tier once that band is exhausted.
+          </p>
+          <div class="ov-table-wrap">
+            <table class="ov-table">
+              <thead>
+                <tr><th>Tier</th><th>Render scale</th><th>MSAA</th><th>Bloom</th><th>Translucency</th><th>Endings · beads</th><th>Suits</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><b>Low</b></td><td>0.50–0.90×</td><td>off</td><td>off</td><td>rim-weighted, single-sided, no specular</td><td>500 · 540</td><td>integrated graphics, older laptops, software rendering</td></tr>
+                <tr><td><b>Medium</b></td><td>0.62–1.0×</td><td>2×</td><td>one level</td><td>full, double-sided</td><td>882 · 960</td><td>recent integrated graphics, mid-range laptops</td></tr>
+                <tr><td><b>High</b></td><td>0.85–1.5×</td><td>4×</td><td>two levels</td><td>full, double-sided</td><td>1 469 · 1 500</td><td>discrete GPUs, Apple silicon</td></tr>
+                <tr><td><b>Ultra</b></td><td>1.0–2.0×</td><td>4×</td><td>two levels</td><td>full, double-sided</td><td>1 469 · 1 920</td><td>modern discrete GPUs, high-DPI displays</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="ov-note">
+            Tension colouring, rim lighting, force propagation, the signal streams and the living physiology
+            are present at every tier — the tiers change how much is spent drawing them, never what is
+            modelled. Geometry tessellation is the one setting chosen at load time from the detected hardware;
+            the frame diagnostics report which was built, and a reload rebuilds it.
+          </p>
+
+          <p class="ov-actions">
+            <button class="btn btn-sm" id="btn-replay-intro">Show the introduction again</button>
+          </p>
 
           <h3 style="margin-top:18px">How the platform is put together</h3>
           <ul class="ov-list ov-wide">
@@ -271,13 +317,18 @@
           <h3 style="margin-top:18px">What changes as you descend</h3>
           <ul class="ov-list ov-wide">
             <li>
-              <b>Layers peel.</b> Skin and superficial fascia fade out by the organ tier, and bone and muscle
-              thin down, so the structure you are approaching is not hidden behind the ones you have passed.
-              Your layer switches are untouched — only how strongly a visible layer is drawn.
+              <b>Layers peel, then re-form.</b> Skin and superficial fascia fade out by the organ tier. Bone,
+              muscle and deep fascia thin hard as you approach it — they are what you need to see past — reach
+              their thinnest while you are travelling between the organ and tissue tiers, and then come partly
+              back below that, because once you are inside the tissue it is the subject again and an ending has
+              to be embedded in something to mean anything. Your layer switches are untouched throughout; this
+              only scales how strongly a visible layer is drawn.
             </li>
             <li>
               <b>The view sections.</b> From the organ tier inward the near plane advances toward the look-at
-              point, cutting away whatever lies between the camera and the subject.
+              point, and the tissue approaching it fades rather than being clipped, so the cut reads like a
+              section rather than like missing geometry. Tissue well past the focal depth fades too, which is
+              what stops the deep views becoming a wash of colour with nothing to read a silhouette against.
             </li>
             <li>
               <b>Receptor markers reach true size.</b> Above the tissue tier the endings are drawn as legible

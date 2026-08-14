@@ -23,18 +23,41 @@ import { bodyRegionAt } from '../platform/ids.js';
  * full weight all the way in. The checkboxes still mean exactly what they say —
  * this only scales how strongly a visible layer is drawn.
  */
+const ramp = (t, from, over) => smootherstep(clamp((t - from) / over, 0, 1));
+
+/**
+ * Enclosure ramp — deliberately not monotonic.
+ *
+ * Bone, muscle and deep fascia play two different roles at two different
+ * scales, and a single falling curve cannot serve both. Approaching the organ
+ * tier they are what you need to see *past*, so they thin hard; the minimum
+ * lands between the organ and tissue tiers, in the zone you are travelling
+ * through rather than working in. Below that they are what you are *inside*,
+ * and they come partly back, because a mechanoreceptor needs to be embedded in
+ * something to mean anything. Both failure modes were real: leaving them heavy
+ * made the organ tier a coloured wash with nothing to read a silhouette
+ * against, and taking them to zero left the tissue tier a field of coloured
+ * glyphs floating in black.
+ *
+ * @param {number} drop how far it falls by the trough
+ * @param {number} ret  how much comes back by the deep tiers
+ */
+const enclosure = (drop, from, over, ret) => (t) => 1 - drop * ramp(t, from, over) + ret * ramp(t, 2.5, 0.8);
+
 const SCALE_WEIGHT = {
-  skin: (t) => 1 - smootherstep(clamp((t - 0.85) / 0.85, 0, 1)),
-  fasciaSup: (t) => 1 - 0.92 * smootherstep(clamp((t - 1.05) / 0.85, 0, 1)),
-  bone: (t) => 1 - 0.72 * smootherstep(clamp((t - 1.55) / 0.95, 0, 1)),
-  muscle: (t) => 1 - 0.55 * smootherstep(clamp((t - 1.9) / 1.0, 0, 1)),
-  chains: (t) => 1 - 0.55 * smootherstep(clamp((t - 1.9) / 1.0, 0, 1)),
-  organ: (t) => 1 - 0.5 * smootherstep(clamp((t - 2.5) / 0.9, 0, 1)),
-  // the neural tree is an orientation aid at whole-body scale but occludes badly
-  // once you are inside a cavity with it
-  nerve: (t) => 1 - 0.6 * smootherstep(clamp((t - 1.7) / 1.0, 0, 1)),
-  arterial: (t) => 1 - 0.35 * smootherstep(clamp((t - 2.0) / 1.0, 0, 1)),
-  venous: (t) => 1 - 0.35 * smootherstep(clamp((t - 2.0) / 1.0, 0, 1)),
+  skin: (t) => 1 - ramp(t, 0.85, 0.85),
+  fasciaSup: (t) => 1 - 0.92 * ramp(t, 1.05, 0.85),
+  bone: enclosure(0.82, 1.35, 0.9, 0.3),
+  muscle: enclosure(0.8, 1.5, 0.95, 0.34),
+  fasciaDeep: enclosure(0.6, 1.6, 1.0, 0.3),
+  // the continuities and the neural tree are subjects of study rather than
+  // enclosure, so they thin gently and keep more of themselves throughout
+  chains: (t) => 1 - 0.5 * ramp(t, 1.9, 1.0),
+  nerve: (t) => 1 - 0.55 * ramp(t, 1.9, 1.1),
+  // organs are the subject at the organ tier, so they hold full weight through it
+  organ: (t) => 1 - 0.45 * ramp(t, 2.6, 0.9),
+  arterial: (t) => 1 - 0.35 * ramp(t, 2.0, 1.0),
+  venous: (t) => 1 - 0.35 * ramp(t, 2.0, 1.0),
 };
 const weightFor = (layer, t) => (SCALE_WEIGHT[layer] ? SCALE_WEIGHT[layer](t) : 1);
 
@@ -191,6 +214,25 @@ export class Registry {
     const out = new Map();
     for (const [k, v] of this.byLayer) out.set(k, v.length);
     return out;
+  }
+
+  /**
+   * Quality lever: render the accumulating translucent shells single-sided.
+   *
+   * Those shells are the bulk of the fill cost, and their back faces contribute
+   * only a second, weaker rim inside the silhouette. Dropping them roughly halves
+   * the fragments the envelope layers generate for a change most readers would
+   * describe as a slightly thinner edge. Reversible, and it touches no geometry.
+   */
+  setShellSides(doubleSided) {
+    const want = doubleSided ? THREE.DoubleSide : THREE.FrontSide;
+    for (const s of this.list) {
+      for (const m of s.meshes) {
+        const mat = m.material;
+        if (!mat?.userData?.wantDoubleSide) continue;
+        if (mat.side !== want) mat.side = want;
+      }
+    }
   }
 
   /** Meshes eligible for raycasting right now. */

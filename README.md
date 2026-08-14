@@ -113,12 +113,14 @@ Because identity is the contract, everything downstream composes without engine 
 | `anatomy/` | Procedural geometry for eight systems + receptor fields + receptor micro-anatomy |
 | `gfx/` | Shared tissue shader, signal streams, network overlay, post pipeline |
 | `core/` | State store, scale-aware orbit controls, multi-scale manager |
+| `core/quality.js` | Tier table, hardware detection, adaptive quality controller |
 | `platform/ids.js` | ID derivation, aliases, region classification, manifest signature |
 | `platform/properties.js` | Base properties, live state, datasets, parameter sets, subject data, provenance |
 | `platform/entitlements.js` | Capability model, tiers, mock licence resolver |
 | `platform/projects.js` | ID-keyed scene capture and restore, JSON export/import |
 | `tools/` | Measurement probes and annotations, both ID-anchored |
-| `ui/` | Systems panel, inspector, workspace panels, telemetry, entitlement states |
+| `ui/` | Systems panel, inspector, workspace panels, telemetry, frame diagnostics, entitlement states |
+| `ui/onboarding.js` | First-run coach marks: scale traversal, multi-select, free vs Professional |
 
 ### API surface
 
@@ -187,21 +189,143 @@ signed token exchange touches no feature code.
 - **Fidelity compares against a parallel healthy-tissue chain.** A rapidly adapting ending
   ignoring a static load is doing its job, not losing information; only the difference between the
   real path and an unrestricted one counts as loss.
-- **Descending sections the view.** From the organ tier inward the near plane advances toward the
-  look-at point, and the enveloping layers fade — you can look at a heart without first deleting
-  the chest wall.
+- **Descending sections the view, and the section is soft.** From the organ tier inward the near
+  plane advances toward the look-at point — you can look at a heart without first deleting the chest
+  wall. Tissue approaching the plane fades instead of being clipped, and tissue well past the focal
+  depth fades too, so the cut reads as a section rather than as missing geometry. Both terms lower
+  alpha before the alpha-cut test, so sectioning removes fill rather than adding any.
+- **The enclosure peels, then re-forms.** Bone, muscle and deep fascia play two roles at two scales,
+  and one falling curve cannot serve both. Approaching the organ tier they are what you need to see
+  past, so they thin hard, reaching their thinnest between the organ and tissue tiers — the zone you
+  travel through rather than work in. Below that they come partly back, because a mechanoreceptor
+  needs to be embedded in something to mean anything. Both failure modes were real: leaving them
+  heavy made the organ tier a coloured wash with nothing to read a silhouette against, and taking
+  them to zero left the tissue tier a field of glyphs floating in black.
+- **Deep-tier framing resolves from the registry, not from coordinates.** At a twelve-millimetre span
+  a centimetre of error is the whole frame. The tissue tier's default look-at point was a literal
+  that sat just outside the anterior trunk — no structure within three centimetres, no receptor
+  ending within twelve millimetres — so jumping to that tier showed black. It now resolves to a real
+  structure's centre, preferring the scalene region: the densest tissue neighbourhood in the model,
+  and where the deep cervical fascia demonstration takes place.
 
 ### Budget
 
-271 selectable structures · 1 740 anatomical IDs · 166 network nodes · 469 elements · ~245 draw
-calls and ~160 k triangles per frame · 11 shader programs · 238 geometries · 8 textures. One
-~225 kB gzipped bundle including three.js, no runtime downloads. Resolution adapts to hold frame
-rate when quality is set to Auto. Over 20 s of continuous simulation the network's resting load
-stays within 1 % of its calibrated baseline and maximum node drift is 15 mm, so nothing creeps.
+271 selectable structures · 1 740 anatomical IDs · 166 network nodes · 469 elements · ~246 draw
+calls and ~161 k triangles per frame · 13 shader programs · 238 geometries · 8 textures. One
+~228 kB gzipped bundle including three.js, no runtime downloads. Over 20 s of continuous
+simulation the network's resting load stays within 1 % of its calibrated baseline and maximum node
+drift is 15 mm, so nothing creeps.
 
 The platform layer adds no per-frame cost to the engine: overlays are written to a per-structure
 uniform only when they change, measurement and annotation labels are DOM with one shared line
 buffer each, and property bags are composed on demand.
+
+## Performance
+
+**The model is fragment-bound, not geometry-bound and not CPU-bound.** That single fact determines
+every quality decision, so it is worth stating with numbers.
+
+The whole simulation — one biotensegrity solve, the physiology, the afferent model with its 240 Hz
+substepping, the scale manager, the signal streams, the measurement and annotation tools and the
+property bags — costs **0.43 ms of CPU per frame**:
+
+| solver | physiology | afferent | layer LOD | scales | signals | overlay | tools | properties |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.193 | 0.062 | 0.154 | 0.203\* | 0.007 | 0.004 | 0.105 | 0.009 | 0.028 |
+
+\* only on a scale change, not every frame. Geometry is ~161 k triangles across ~246 draw calls,
+which is nothing for any GPU of the last decade.
+
+What costs is pixels. A dozen translucent layers overlap at every pixel of the figure, each
+fragment runs a three-light rig, and the result is accumulated into a half-float MSAA target. So the
+levers that matter are the ones that change how many samples get shaded and blended. Measured one
+at a time from the same baseline (High, full render scale, 4× MSAA, two bloom levels, double-sided
+shells, full density):
+
+| lever | frame-cost saving |
+| --- | --- |
+| MSAA 4× → off | 48 % |
+| render scale 1.0 → 0.5× | 43 % |
+| render scale 1.0 → 0.75× | 21 % |
+| bloom off | 9 % |
+| translucent shells single-sided | 7 % |
+| receptor endings 1 469 → 500 drawn | 7 % |
+| signal beads 1 920 → 540 drawn | 5 % |
+| MSAA 4× → 2× | 4 % |
+| bloom two levels → one | 3 % |
+
+Two further optimisations live in the shader and are *not* in that table, because they could not be
+measured here. The first resolves a fragment's alpha before any lighting work and discards it if it
+cannot contribute — expressed as a fraction of the layer's own opacity, so every layer is thinned by
+the same proportion of its silhouette and dense or thin high-floor layers are never touched at all.
+The second drops the specular term from the light rig at the lowest tier, which removes the
+half-vector normalise and the `pow()` while keeping all three diffuse lights, and therefore the form
+of the muscle bellies and organ surfaces.
+
+Both measured within noise on the software rasteriser these figures come from, which does not reward
+`discard` and appears to be bound by blend bandwidth rather than shader arithmetic. They are kept
+because on real hardware a discarded fragment costs no blend and no bandwidth at all, and because
+resolving alpha first is better shader ordering regardless — but no claim is made for their size, and
+both are set conservatively enough that the image is the thing being protected rather than the
+benchmark.
+
+### Quality tiers
+
+| | Low | Medium | High | Ultra |
+| --- | --- | --- | --- | --- |
+| Render scale | 0.50–0.90× | 0.62–1.0× | 0.85–1.5× | 1.0–2.0× |
+| MSAA | off | 2× | 4× | 4× |
+| Bloom | off | one level | two levels | two levels |
+| Translucent shells | rim-weighted, single-sided | full, double-sided | full, double-sided | full, double-sided |
+| Lighting | three-light rig, no specular | three-light rig | three-light rig | three-light rig |
+| Receptor endings drawn | 500 | 882 | 1 469 | 1 469 |
+| Signal beads drawn | 540 | 960 | 1 500 | 1 920 |
+| Suits | integrated graphics, older laptops, software rendering | recent integrated graphics, mid-range laptops | discrete GPUs, Apple silicon | modern discrete GPUs, high-DPI displays |
+
+Tension colouring, rim lighting, force propagation, the signal streams and the living physiology are
+present at **every** tier. The tiers change how much is spent drawing the model; they never change
+what is modelled, and no tier alters the solver, the afferent filters or the physiology by so much as
+a timestep. Nothing about a tier is gated by licence either — a free-tier user on integrated
+graphics gets the same adaptive behaviour as a Professional user on a workstation.
+
+**Auto** is the default. It measures the real frame time and holds 60 fps by moving the render scale
+first — the largest lever and the least visible one — and only changes tier once that band is
+exhausted. Decisions require both sustained slowness (~0.6 s) and a minimum number of frames since
+the last change, so the exponential average has actually caught up with the previous decision before
+another is made; a machine at three frames a second would otherwise walk the entire ladder down in
+one second while reacting to measurements that still described the old configuration. A tier that
+has already proved too slow is retried far more reluctantly than it is left, which is what keeps a
+machine sitting exactly on a boundary from oscillating.
+
+Auto starts from a guess based on the reported GPU string, core count and device memory. Being wrong
+costs a couple of seconds of adjustment — except for one decision that cannot be revisited, geometry
+tessellation, which is CPU work done once at load. The frame diagnostics report which level was
+built, and selecting a tier above it says so and suggests a reload.
+
+**Frame diagnostics** — `Render ▸ Performance read-out`, or <kbd>Shift</kbd>+<kbd>F</kbd> — report
+frame time, simulation CPU time, render scale, actual buffer size, draw calls, triangles, drawn
+endings and beads, the active tier and what Auto last changed. `renderer.info` is read with
+`autoReset` off and reset once per frame, so the numbers cover the whole frame rather than just the
+final composite pass.
+
+### Behaviour under stress
+
+- **Resize** is coalesced to one call per frame. Each resize reallocates the MSAA target and four
+  blur targets; doing that per event turns a dragged window edge into a multi-second stall.
+- **Background tabs.** `requestAnimationFrame` stops, so the first frame back would otherwise carry
+  the whole hidden interval as one timestep. The frame clock is reset on return and the quality
+  controller is told to ignore it, so a session left in another tab for an hour resumes where it was
+  rather than demoting itself over a frame that was never drawn.
+- **Low frame rates.** The simulation timestep is clamped well below the frame time it is handed: at
+  20 fps the model runs slightly slow rather than taking 50 ms steps the constraint solver cannot
+  integrate stably. A visualisation that drifts a little in time is honest; one that detonates is
+  not.
+- **Camera transitions run on wall-clock time, not the simulation timestep.** A two-second
+  cinematic descent takes two seconds whether the machine is drawing sixty frames a second or eight.
+  Driving them from the clamped timestep made every transition run five times too long on slow
+  hardware — precisely where an unfinished move reads as the application having hung.
+- **Context loss** — a laptop waking from sleep, a driver reset — is caught and reported rather than
+  leaving a silently frozen canvas.
 
 ## Scope
 

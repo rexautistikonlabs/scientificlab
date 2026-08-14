@@ -87,8 +87,11 @@ const COMPOSITE_FRAG = /* glsl */ `
       col = texture2D(tScene, uv).rgb;
     }
 
-    vec3 bloom = texture2D(tBloomA, uv).rgb * 0.62 + texture2D(tBloomB, uv).rgb * 0.38;
-    col += bloom * uBloom;
+    // uniform branch, so the two bloom fetches cost nothing on tiers without it
+    if (uBloom > 0.001) {
+      vec3 bloom = texture2D(tBloomA, uv).rgb * 0.62 + texture2D(tBloomB, uv).rgb * 0.38;
+      col += bloom * uBloom;
+    }
 
     col *= uExposure;
     col = aces(col);
@@ -141,10 +144,14 @@ function makeRT(w, h, opts = {}) {
 }
 
 export class PostFX {
-  constructor(renderer, { samples = 4 } = {}) {
+  constructor(renderer, { samples = 4, levels = 2 } = {}) {
     this.renderer = renderer;
     this.samples = samples;
+    /** bloom levels: 2 = half + quarter res, 1 = half only, 0 = none */
+    this.levels = levels;
     this.enabled = true;
+    this.w = 1;
+    this.h = 1;
 
     this.sceneRT = makeRT(1, 1, { depthBuffer: true, samples });
     this.a1 = makeRT(1, 1);
@@ -198,6 +205,24 @@ export class PostFX {
     );
   }
 
+  /**
+   * Change the MSAA sample count. The sample count is baked into the render
+   * target's framebuffer, so the target has to be rebuilt — which is why this is
+   * a tier-change operation and never a per-frame one.
+   */
+  setSamples(n) {
+    const s = Math.max(0, Math.min(8, n | 0));
+    if (s === this.samples) return;
+    this.samples = s;
+    this.sceneRT.dispose();
+    this.sceneRT = makeRT(this.w, this.h, { depthBuffer: true, samples: s });
+  }
+
+  /** 2 = half + quarter-res bloom, 1 = half only (four fewer blur passes), 0 = off. */
+  setLevels(n) {
+    this.levels = Math.max(0, Math.min(2, n | 0));
+  }
+
   setSize(w, h, dpr = 1) {
     const W = Math.max(1, Math.floor(w * dpr));
     const H = Math.max(1, Math.floor(h * dpr));
@@ -234,8 +259,13 @@ export class PostFX {
     r.clear();
     r.render(scene, camera);
 
-    const bloomStrength = this.composite.material.uniforms.uBloom.value;
-    if (bloomStrength > 0.001) {
+    const cu = this.composite.material.uniforms;
+    // with no bloom levels the blur targets are never written, so the composite
+    // must not read them
+    if (this.levels === 0) cu.uBloom.value = 0;
+    const bloomStrength = cu.uBloom.value;
+    const wide = this.levels >= 2;
+    if (bloomStrength > 0.001 && this.levels > 0) {
       // bright pass at half res
       this.bright.material.uniforms.tSrc.value = this.sceneRT.texture;
       this.bright.render(r, this.a1);
@@ -250,24 +280,27 @@ export class PostFX {
       this.blur.render(r, this.a1);
 
       // quarter-res wide blur fed from the half-res result
-      bu.tSrc.value = this.a1.texture;
-      bu.uDir.value.set(1.6 / this.b1.width, 0);
-      this.blur.render(r, this.b1);
-      bu.tSrc.value = this.b1.texture;
-      bu.uDir.value.set(0, 1.6 / this.b1.height);
-      this.blur.render(r, this.b2);
-      bu.tSrc.value = this.b2.texture;
-      bu.uDir.value.set(2.4 / this.b1.width, 0);
-      this.blur.render(r, this.b1);
-      bu.tSrc.value = this.b1.texture;
-      bu.uDir.value.set(0, 2.4 / this.b1.height);
-      this.blur.render(r, this.b2);
+      if (wide) {
+        bu.tSrc.value = this.a1.texture;
+        bu.uDir.value.set(1.6 / this.b1.width, 0);
+        this.blur.render(r, this.b1);
+        bu.tSrc.value = this.b1.texture;
+        bu.uDir.value.set(0, 1.6 / this.b1.height);
+        this.blur.render(r, this.b2);
+        bu.tSrc.value = this.b2.texture;
+        bu.uDir.value.set(2.4 / this.b1.width, 0);
+        this.blur.render(r, this.b1);
+        bu.tSrc.value = this.b1.texture;
+        bu.uDir.value.set(0, 2.4 / this.b1.height);
+        this.blur.render(r, this.b2);
+      }
     }
 
-    const cu = this.composite.material.uniforms;
     cu.tScene.value = this.sceneRT.texture;
     cu.tBloomA.value = this.a1.texture;
-    cu.tBloomB.value = this.b2.texture;
+    // with one level the composite reads the same half-res result twice, so its
+    // 0.62 / 0.38 weighting still sums to a full-strength bloom
+    cu.tBloomB.value = wide ? this.b2.texture : this.a1.texture;
     cu.uTime.value = time;
     this.composite.render(r, null);
   }

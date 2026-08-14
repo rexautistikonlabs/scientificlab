@@ -57,6 +57,35 @@ export class ScaleManager {
       { center: new THREE.Vector3(0.03, 1.22, 0.05), theta: 0.9, phi: Math.PI * 0.5 - 0.2 },
       { center: new THREE.Vector3(0.03, 1.22, 0.056), theta: 1.1, phi: Math.PI * 0.5 - 0.24 },
     ];
+    this._resolveDeepDefaults();
+  }
+
+  /**
+   * Point the two deepest default framings at a structure that actually exists.
+   *
+   * The literals above are fine down to the organ tier, where a centimetre of
+   * error is a small fraction of the view. At a twelve-millimetre span it is the
+   * whole frame, and the tissue-tier literal was doing exactly that: it sat just
+   * outside the anterior trunk, with no structure within three centimetres and no
+   * receptor ending within twelve millimetres, so jumping to that tier showed a
+   * black field with a few coloured glyphs in it. Resolving through the registry
+   * means the framing follows the geometry instead of a coordinate that was
+   * correct when it was typed.
+   *
+   * The scalene region is the preferred subject because it is the densest tissue
+   * neighbourhood in the model — cervical vertebrae, cord, roots, deep fascia,
+   * muscle and several receptor classes within a few millimetres — and because it
+   * is where the deep cervical fascia demonstration takes place.
+   */
+  _resolveDeepDefaults() {
+    const preferred = ['muscle:scalene:R', 'muscle:scalene:L', 'organ:kidney:L', 'bone:vert:C6'];
+    for (const key of preferred) {
+      const s = this.registry?.get?.(key);
+      if (!s) continue;
+      this.defaults[3].center.copy(s.center);
+      this.defaults[4].center.copy(s.center);
+      return;
+    }
   }
 
   /**
