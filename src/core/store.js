@@ -165,6 +165,40 @@ export const TOOLS = [
   },
 ];
 
+/* ------------------------------------------------------------
+   Persisted render preferences.
+
+   Only two settings persist, and both do so because a *tester* needs them to:
+   locking a quality tier and leaving the diagnostics panel open have to survive
+   the reloads that measuring on real hardware requires. Everything else about a
+   session is deliberately transient — a saved project is the way to keep state.
+   ------------------------------------------------------------ */
+
+const PREFS_KEY = 'continuum.render.v1';
+const PERSISTED = ['quality', 'perfHud'];
+
+function readPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    const p = raw ? JSON.parse(raw) : null;
+    if (!p || typeof p !== 'object') return {};
+    const out = {};
+    if (['auto', 'low', 'medium', 'high', 'ultra'].includes(p.quality)) out.quality = p.quality;
+    if (typeof p.perfHud === 'boolean') out.perfHud = p.perfHud;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writePrefs(render) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(Object.fromEntries(PERSISTED.map((k) => [k, render[k]]))));
+  } catch {
+    /* storage may be unavailable; the setting then lasts one page load */
+  }
+}
+
 class Store extends Emitter {
   constructor() {
     super();
@@ -212,10 +246,11 @@ class Store extends Emitter {
       forceColor: true,
       network: false,
       exposure: 1.0,
-      /** 'auto' | 'low' | 'medium' | 'high' | 'ultra' */
+      /** 'auto' | 'low' | 'medium' | 'high' | 'ultra' — persisted */
       quality: 'auto',
-      /** on-screen frame diagnostics */
+      /** on-screen frame diagnostics — persisted */
       perfHud: false,
+      ...readPrefs(),
     };
 
     /** live restriction / load records applied by the user */
@@ -385,6 +420,7 @@ class Store extends Emitter {
     const cap = Store.GATED_RENDER[k];
     if (cap && v && !entitlements.require(cap, { param: k })) return;
     this.render[k] = v;
+    if (PERSISTED.includes(k)) writePrefs(this.render);
     this.emit('render', k);
   }
 

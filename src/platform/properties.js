@@ -21,6 +21,7 @@
 
 import { clamp } from '../core/util.js';
 import { describe } from '../anatomy/info.js';
+import { entitlements } from './entitlements.js';
 
 /** Fields a dataset may bind to a structure, with display metadata. */
 export const NUMERIC_FIELDS = Object.freeze({
@@ -281,13 +282,59 @@ export class PropertyStore {
     return typeof v === 'number' ? v : v[ds.field];
   }
 
-  /** Which dataset is currently painted onto the model, if any. */
+  /**
+   * The whole bound record, not just the painted number.
+   *
+   * A measurement without its dispersion and its sample count is a number, not a
+   * measurement, so a dataset may bind `{ value, sd, n }` and the inspector shows
+   * all of it. The overlay still paints from `field` alone.
+   */
+  datasetRecord(datasetId, idOrKey) {
+    const ds = this.datasets.get(datasetId);
+    if (!ds) return null;
+    const id = this.ids.normalise(idOrKey);
+    if (!id) return null;
+    const v = ds.values.get(id);
+    if (v == null) return null;
+    return typeof v === 'number' ? { [ds.field]: v } : v;
+  }
+
+  /** Forget a dataset entirely, clearing the overlay if it was the active one. */
+  removeDataset(datasetId) {
+    if (!this.datasets.has(datasetId)) return false;
+    this.datasets.delete(datasetId);
+    if (this._activeOverlay === datasetId) {
+      this._activeOverlay = null;
+      this.paintOverlay();
+    }
+    this._emit();
+    return true;
+  }
+
+  /**
+   * Which dataset is currently painted onto the model, if any.
+   *
+   * Licence-aware, because this getter is what the legend, the chips and the
+   * paint routine all read: an unlicensed session must not see the dataset's
+   * range, bound count or provenance any more than it sees the colours. The
+   * selection itself is retained in `_activeOverlay`, so upgrading restores it
+   * rather than making the user choose again.
+   */
   get activeOverlay() {
+    if (!entitlements.can('data.overlays')) return null;
     return this._activeOverlay ? this.datasets.get(this._activeOverlay) || null : null;
   }
 
+  /**
+   * Choose the painted dataset.
+   *
+   * Gated here, not only in the panel that calls it. Research overlays are a
+   * licensed capability, and the panel is a courtesy: scripting this function
+   * from the console used to paint a premium overlay onto a free-tier session.
+   */
   setOverlay(datasetId) {
     if (datasetId && !this.datasets.has(datasetId)) return false;
+    if (datasetId && !entitlements.require('data.overlays', { dataset: datasetId })) return false;
     for (const ds of this.datasets.values()) ds.active = ds.id === datasetId;
     this._activeOverlay = datasetId || null;
     this.paintOverlay();
@@ -300,9 +347,15 @@ export class PropertyStore {
    * per-material uniform rather than through the solved field texture, so the
    * single-solve architecture is untouched and an overlay costs nothing per
    * frame — only when it changes.
+   *
+   * This is the one function every path to a painted overlay goes through, which
+   * is why the licence check is repeated here as well as in `setOverlay`: a tier
+   * that lapses or is downgraded while an overlay is active must stop painting on
+   * the next call, without anything having to remember to clear it. The same
+   * reasoning as `effectiveOpacity` in the store.
    */
   paintOverlay() {
-    const ds = this.activeOverlay;
+    const ds = entitlements.can('data.overlays') ? this.activeOverlay : null;
     for (const s of this.registry.list) {
       if (!ds) {
         s.setUniform('uOverlay', 0);
@@ -435,9 +488,20 @@ export class PropertyStore {
 
     const push = (label, value, unit, source) => out.fields.push({ label, value, unit, source });
 
+    /* Dataset values are part of the licensed research surface — the same rule
+       that gates the overlay colours and the deep telemetry read-out. Reading
+       them out of the inspector would be a way around both. */
+    const showDatasets = entitlements.can('data.overlays');
     for (const [dsId, ds] of this.datasets) {
+      if (!showDatasets) break;
       const v = this.datasetValue(dsId, id);
-      if (v != null) push(ds.name, v, ds.unit, ds.source || `dataset:${dsId}`);
+      if (v == null) continue;
+      // dispersion and sample count travel with the value where the dataset
+      // supplied them — a measurement without them is only a number
+      const rec = this.datasetRecord(dsId, id);
+      const sd = typeof rec?.sd === 'number' ? ` ± ${rec.sd}` : '';
+      const n = typeof rec?.n === 'number' ? ` (n=${rec.n})` : '';
+      push(ds.name, `${v}${sd}${n}`, ds.unit, ds.source || `dataset:${dsId}`);
     }
     for (const [, p] of this.pathologies) {
       if (!p.applied) continue;

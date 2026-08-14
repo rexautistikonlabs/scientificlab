@@ -12,9 +12,16 @@
    tool refuses to arm. The UI's locked states are a courtesy on top of
    that, not the mechanism; disabling a button in the DOM is not a gate.
 
-   Auth is mocked for the prototype: a licence key in localStorage. The
-   shape is deliberately the one a real entitlement service returns, so
-   swapping the resolver for a network call touches this file only.
+   The tier comes from an *entitlement claim* — a small record saying who
+   holds what, from when, until when, and who said so. `applyClaim` is the
+   only way the tier ever changes, which is the seam a real deployment
+   plugs into: an auth provider issues a token, a server exchanges it for
+   a claim, the client calls applyClaim. Nothing downstream of this file
+   knows or cares where the claim came from, so adding real auth and real
+   billing does not touch a single capability check.
+
+   Both paths supplied here are mocks: an anonymous licence key, and the
+   mock session in `auth.js`. Their output shape is the production shape.
    ============================================================ */
 
 import { Emitter } from '../core/util.js';
@@ -116,24 +123,60 @@ export const FREE_MAX_TIER = 1;
 const STORAGE_KEY = 'continuum.licence.v1';
 
 /**
- * Mock licence resolver. A real deployment replaces this with a signed token
- * exchange; the return shape is unchanged.
+ * An entitlement claim.
+ *
+ * @typedef {object} Claim
+ * @property {'free'|'premium'} tier
+ * @property {string|null} holder     who it was issued to — an email in production
+ * @property {string|null} plan       billing plan id, for display and for support
+ * @property {string} source          'anonymous' | 'licence-key' | 'session' | 'api'
+ * @property {string|null} issued     ISO timestamp
+ * @property {string|null} expires    ISO timestamp, or null for no expiry
  */
-function readLicence() {
+
+/** The claim a visitor with no session and no key holds. */
+const ANONYMOUS = Object.freeze({
+  tier: 'free',
+  holder: null,
+  plan: null,
+  source: 'anonymous',
+  issued: null,
+  expires: null,
+});
+
+function normaliseClaim(c) {
+  if (!c || (c.tier !== 'free' && c.tier !== 'premium')) return null;
+  return {
+    tier: c.tier,
+    holder: c.holder ?? null,
+    plan: c.plan ?? null,
+    source: c.source || 'licence-key',
+    issued: c.issued || new Date().toISOString(),
+    expires: c.expires ?? null,
+  };
+}
+
+/** True once an expiry has passed. Checked on read, not on a timer. */
+function expired(c) {
+  if (!c?.expires) return false;
+  const t = Date.parse(c.expires);
+  return Number.isFinite(t) && t < Date.now();
+}
+
+function readClaim() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const l = JSON.parse(raw);
-    if (l && (l.tier === 'free' || l.tier === 'premium')) return l;
+    return normaliseClaim(JSON.parse(raw));
   } catch {
-    /* corrupt or unavailable storage falls back to free */
+    /* corrupt or unavailable storage falls back to anonymous */
+    return null;
   }
-  return null;
 }
 
-function writeLicence(l) {
+function writeClaim(c) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(l));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(c));
   } catch {
     /* storage may be unavailable; the session still works, it just won't persist */
   }
@@ -142,14 +185,31 @@ function writeLicence(l) {
 export class Entitlements extends Emitter {
   constructor() {
     super();
-    const l = readLicence();
-    this.licence = l || { tier: 'free', holder: null, issued: null };
+    const c = readClaim();
+    /** @type {Claim} */
+    this.claim = c && !expired(c) ? c : { ...ANONYMOUS };
     /** capabilities blocked this session, for the "what would I get" upsell */
     this.blocked = new Map();
   }
 
+  /** Back-compatible alias — the claim *is* the licence. */
+  get licence() {
+    return this.claim;
+  }
+
   get tier() {
-    return this.licence.tier;
+    // an expired claim degrades on read rather than needing a timer to fire
+    if (expired(this.claim)) this._degrade();
+    return this.claim.tier;
+  }
+
+  _degrade() {
+    const prev = this.claim;
+    this.claim = { ...ANONYMOUS };
+    writeClaim(this.claim);
+    this.blocked.clear();
+    this.emit('tier', this.claim);
+    this.emit('expired', prev);
   }
 
   get tierInfo() {
@@ -195,30 +255,64 @@ export class Entitlements extends Emitter {
       .sort((a, b) => b.attempts - a.attempts);
   }
 
-  setTier(tier, holder = null) {
-    if (!TIERS[tier] || tier === this.licence.tier) return false;
-    this.licence = { tier, holder, issued: new Date().toISOString() };
-    writeLicence(this.licence);
+  /**
+   * The single way the tier ever changes.
+   *
+   * This is the production seam. An auth provider issues a token, a server
+   * validates it against whatever billing system is in use and returns a claim,
+   * and the client calls this. Everything downstream — every `can()`, every
+   * `require()`, the scale ceiling, `effectiveOpacity`, every tool — reads the
+   * result and none of them know or care how the claim was obtained. Adding real
+   * auth and real billing therefore adds no gate logic and changes none.
+   *
+   * @param {Claim} claim
+   * @returns {boolean} true if the effective entitlement changed
+   */
+  applyClaim(claim) {
+    const next = normaliseClaim(claim);
+    if (!next) return false;
+    if (expired(next)) return false;
+    const same =
+      next.tier === this.claim.tier &&
+      next.holder === this.claim.holder &&
+      next.plan === this.claim.plan &&
+      next.source === this.claim.source;
+    if (same) return false;
+    this.claim = next;
+    writeClaim(this.claim);
     this.blocked.clear();
-    this.emit('tier', this.licence);
+    this.emit('tier', this.claim);
     return true;
   }
 
+  /** Convenience wrapper for scripting and for the demo controls. */
+  setTier(tier, holder = null, extra = {}) {
+    if (!TIERS[tier]) return false;
+    return this.applyClaim({ tier, holder, source: 'api', ...extra });
+  }
+
   /**
-   * Mock key redemption. Anything matching the demo pattern grants Professional;
-   * this is the seam a real licence server plugs into.
+   * Mock key redemption — the anonymous path, for demos and for offline
+   * institutional keys. A real licence server validates the key and returns the
+   * same claim shape.
    */
   redeem(key) {
     const k = String(key || '').trim().toUpperCase();
     if (/^(CONTINUUM|PRO)-[A-Z0-9]{4,}$/.test(k) || k === 'DEMO') {
-      this.setTier('premium', k);
+      this.applyClaim({ tier: 'premium', holder: k, plan: 'licence-key', source: 'licence-key' });
       return { ok: true, tier: 'premium' };
     }
     return { ok: false, reason: 'That key was not recognised.' };
   }
 
+  /** Drop back to the anonymous claim. */
   reset() {
-    this.setTier('free');
+    if (this.claim.source === 'anonymous' && this.claim.tier === 'free') return false;
+    this.claim = { ...ANONYMOUS };
+    writeClaim(this.claim);
+    this.blocked.clear();
+    this.emit('tier', this.claim);
+    return true;
   }
 }
 

@@ -34,6 +34,58 @@
         </div>
       </div>
 
+      <!-- Start screen: what this is, and what each tier includes.
+           Shown over the already-running model, once per browser. -->
+      <div id="start" class="start" hidden>
+        <div class="start-card">
+          <div class="start-head">
+            <span class="tb-logo" aria-hidden="true"></span>
+            <h1>CONTINUUM</h1>
+            <p>Living biotensegrity &amp; afferent flow</p>
+          </div>
+
+          <p class="start-lead">
+            An interactive model of the body as one continuous tension network — from the whole body down to a
+            single mechanoreceptor. The heart, the breath, visceral motility and fluid transport are running
+            before you touch anything, and every meter reads from the same solve that moves the tissue.
+          </p>
+
+          <div class="start-tiers">
+            <div class="start-tier">
+              <header><span class="tier-badge">FREE</span><b>Explorer</b><span id="start-free-price"></span></header>
+              <ul>
+                <li>Whole-body and region scale</li>
+                <li>Bones, major muscle groups, organs, skin</li>
+                <li>Single selection with full anatomy and tissue properties</li>
+                <li>Live telemetry: network load, tension, signal integrity, breath, fluid transport</li>
+              </ul>
+              <button class="btn btn-primary" id="btn-start-free">Start exploring</button>
+              <p class="start-fine">No account needed.</p>
+            </div>
+            <div class="start-tier start-tier-pro">
+              <header><span class="tier-badge tier-pro">PRO</span><b>Professional</b><span id="start-pro-price"></span></header>
+              <ul>
+                <li>All five scales, continuous, with receptor micro-anatomy</li>
+                <li>Every layer: fascia, myofascial lines, nerves, vessels, lymph, receptors</li>
+                <li>Unlimited multi-select, isolate, per-layer opacity</li>
+                <li>Mechanical intervention, tension mapping, signal streams</li>
+                <li>Measurement, annotation, research overlays, saved projects, export</li>
+                <li>The advanced instrument: per-receptor bandwidth and latency, viscoelastic parameters</li>
+              </ul>
+              <button class="btn btn-primary" id="btn-start-pro">Sign in or subscribe</button>
+              <p class="start-fine">Prototype billing — nothing is charged.</p>
+            </div>
+          </div>
+
+          <p class="start-scope">
+            A visualisation and teaching instrument for mechanical and sensory physiology. Structures follow
+            published adult proportions; the mechanics, viscoelastic filtering and rate coding model published
+            principles qualitatively rather than reproducing any measured dataset. It is not a diagnostic,
+            clinical or treatment tool, and it does not describe any individual body.
+          </p>
+        </div>
+      </div>
+
       <!-- Top bar -->
       <header id="topbar" class="topbar" hidden>
         <div class="tb-brand">
@@ -82,13 +134,19 @@
           </section>
 
           <section class="pgroup" data-cap="data.overlays">
-            <h2 class="pgroup-h">Research overlays</h2>
+            <h2 class="pgroup-h">
+              Research overlays
+              <span class="pgroup-tools">
+                <button class="mini" id="btn-ds-load" title="Load a dataset JSON file from disk">load…</button>
+              </span>
+            </h2>
             <p class="pnote">
               Datasets keyed by anatomical ID. Any external dataset that speaks the same IDs paints onto the
-              model without touching geometry.
+              model without touching geometry — a flat map from ID to number is the whole contract.
             </p>
             <div id="overlay-list" class="chip-grid"></div>
             <div id="overlay-legend" class="legend" hidden></div>
+            <input type="file" id="ds-file" accept="application/json,.json" hidden />
           </section>
 
           <section class="pgroup" data-cap="data.pathology">
@@ -170,6 +228,12 @@
         </header>
         <dl id="pp-rows"></dl>
         <p class="pp-note" id="pp-note"></p>
+        <p class="pp-gpu" id="pp-gpu"></p>
+        <div class="pp-log" id="pp-log" hidden></div>
+        <div class="pp-actions">
+          <button class="mini" id="pp-toggle-log" title="Every Auto decision, with the frame time that caused it">log</button>
+          <button class="mini" id="pp-copy" title="Copy a full diagnostics report to the clipboard">copy</button>
+        </div>
       </div>
 
       <!-- free-tier mark -->
@@ -250,7 +314,7 @@
               <ul class="ov-list">
                 <li><kbd>D</kbd> distance measurement · <kbd>N</kbd> add a note</li>
                 <li><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> save the scene · <kbd>P</kbd> plan</li>
-                <li><kbd>Shift</kbd>+<kbd>F</kbd> frame diagnostics</li>
+                <li><kbd>Shift</kbd>+<kbd>F</kbd> frame diagnostics — persists across reloads</li>
               </ul>
             </div>
           </div>
@@ -279,12 +343,44 @@
           <p class="ov-note">
             Tension colouring, rim lighting, force propagation, the signal streams and the living physiology
             are present at every tier — the tiers change how much is spent drawing them, never what is
-            modelled. Geometry tessellation is the one setting chosen at load time from the detected hardware;
-            the frame diagnostics report which was built, and a reload rebuilds it.
+            modelled. No tier is gated by licence. Geometry tessellation is the one setting chosen at load time
+            from the detected hardware; the frame diagnostics report which was built, and a reload rebuilds it.
+          </p>
+          <p class="ov-note">
+            The quality choice and the diagnostics panel both persist across reloads, so a tier can be locked
+            and measured without Auto moving underneath the test. The panel's <code>log</code> button lists
+            every decision Auto made with the frame time that caused it, and <code>copy</code> puts a full
+            report — GPU, viewport, tier, frame time, draw calls, triangles, CPU solve time and the whole
+            decision log — on the clipboard. If the panel's GPU line reads <b>SOFTWARE RASTERISER</b>, the
+            machine is not using its GPU and the frame times mean nothing about real hardware.
+          </p>
+
+          <h3 style="margin-top:18px">Research overlays</h3>
+          <p class="ov-note">
+            An overlay is a flat map from anatomical ID to a number — that is the whole contract, which is why
+            an elastography export, a myotonometry session and a modelling result all arrive the same way.
+            Load one with <b>Research overlays ▸ load…</b>, or click a dataset that ships with the build. Keys
+            may be a canonical ID, an alias, or a region code such as <code>THORAX</code> or
+            <code>PLANTAR_L</code>, which fans out to every structure in that region. Values may carry their
+            dispersion and sample count, shown in the inspector as <code>62.5 ± 9.1 (n=12)</code>. Anything
+            that cannot be resolved is reported rather than dropped — an overlay silently covering 30 of 50
+            structures is worse than one that says so. The overlay paints through a single per-structure
+            uniform, so the living physiology and the tension mapping keep running underneath it.
+          </p>
+
+          <h3 style="margin-top:18px">Account, plan and your data</h3>
+          <p class="ov-note">
+            An account holds your subscription; signing in grants nothing on its own. Billing and sign-in are
+            <b>mocked in this build</b> — no payment is taken and nothing leaves this browser. The session, the
+            licence claim, your saved scenes and your render preferences are all stored locally on this
+            machine, and clearing site data removes them. Institutional and offline seats use a licence key
+            instead of an account; both paths end in the same entitlement claim, which is the only thing that
+            can change what is unlocked.
           </p>
 
           <p class="ov-actions">
             <button class="btn btn-sm" id="btn-replay-intro">Show the introduction again</button>
+            <button class="btn btn-sm" id="btn-replay-start">Show the start screen again</button>
           </p>
 
           <h3 style="margin-top:18px">How the platform is put together</h3>
@@ -350,31 +446,69 @@
       <div id="upgrade" class="overlay" hidden>
         <div class="overlay-card upgrade-card">
           <button class="overlay-x" id="upgrade-x" aria-label="Close">×</button>
-          <h2>PLAN</h2>
+          <h2>ACCOUNT &amp; PLAN</h2>
           <p class="ov-lead" id="upgrade-lead"></p>
+
+          <!-- account state -->
+          <div class="acct" id="acct">
+            <div class="acct-who">
+              <span class="acct-avatar" id="acct-avatar" aria-hidden="true"></span>
+              <span>
+                <b id="acct-label">Not signed in</b>
+                <em id="acct-detail">Explorer — no account needed</em>
+              </span>
+            </div>
+            <div class="acct-actions" id="acct-actions"></div>
+          </div>
+
+          <!-- sign-in, shown when there is no session -->
+          <div class="signin" id="signin">
+            <h3>Sign in</h3>
+            <p class="pnote">
+              An account holds your subscription, your saved scenes and your licensed seats. Signing in
+              grants nothing on its own — entitlement comes from the subscription attached to the account.
+            </p>
+            <div class="signin-row">
+              <input id="signin-email" type="email" placeholder="you@example.org" aria-label="Email address" spellcheck="false" autocomplete="email" />
+              <button class="btn btn-primary" id="btn-signin">Continue</button>
+            </div>
+            <div class="signin-providers" id="signin-providers"></div>
+            <p class="ov-fine" id="signin-msg"></p>
+          </div>
+
           <div class="plan-grid">
             <div class="plan" id="plan-free">
-              <header><span class="tier-badge">FREE</span><b>Explorer</b></header>
+              <header><span class="tier-badge">FREE</span><b>Explorer</b><span class="plan-price" id="plan-free-price"></span></header>
               <ul id="plan-free-list"></ul>
+              <div class="plan-cta" id="plan-free-cta"></div>
             </div>
             <div class="plan plan-pro" id="plan-premium">
-              <header><span class="tier-badge tier-pro">PRO</span><b>Professional</b></header>
+              <header><span class="tier-badge tier-pro">PRO</span><b>Professional</b><span class="plan-price" id="plan-pro-price"></span></header>
               <ul id="plan-pro-list"></ul>
+              <div class="plan-cta" id="plan-pro-cta"></div>
             </div>
           </div>
           <div id="upgrade-reached" class="reached" hidden>
             <h3>What you reached for</h3>
             <ul id="upgrade-reached-list" class="ov-list"></ul>
           </div>
-          <div class="key-row">
-            <input id="licence-key" type="text" placeholder="Licence key" aria-label="Licence key" spellcheck="false" />
-            <button class="btn btn-primary" id="btn-redeem">Activate</button>
-            <button class="btn" id="btn-downgrade">Use free tier</button>
-          </div>
+          <details class="key-block">
+            <summary>Have a licence key?</summary>
+            <div class="key-row">
+              <input id="licence-key" type="text" placeholder="Licence key" aria-label="Licence key" spellcheck="false" />
+              <button class="btn btn-primary" id="btn-redeem">Activate</button>
+              <button class="btn" id="btn-downgrade">Use free tier</button>
+            </div>
+            <p class="pnote">
+              For institutional and offline seats, which are issued as keys rather than accounts.
+            </p>
+          </details>
           <p class="ov-fine" id="licence-msg">
-            Prototype licensing. Any key of the form <code>PRO-XXXX</code>, or <code>DEMO</code>, activates
-            Professional locally; the resolver is a single module, so a real entitlement service drops in
-            without touching feature code.
+            Prototype billing and auth. No payment is taken and no data leaves this browser: the session
+            and the subscription live in local storage. Any key of the form <code>PRO-XXXX</code>, or
+            <code>DEMO</code>, activates Professional. Both paths end in the same place — a single
+            entitlement claim — which is the only way the tier can change, so a real auth provider and a
+            real payment provider drop in without touching one feature check.
           </p>
         </div>
       </div>

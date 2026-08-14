@@ -1,15 +1,20 @@
 /* ============================================================
-   Entitlement UI — tier badge, plan dialog, locked states.
+   Account and entitlement UI — tier badge, account dialog, locked states.
 
    The locked states here are presentation only. Every capability is already
    enforced in the store, the scale manager and the tools; if this file were
    deleted the gate would still hold. What it adds is the thing a freemium
    product actually needs: making the locked capability legible and desirable
    at the moment the user reaches for it, rather than hiding it.
+
+   The account flow is the same shape: it collects a session and a
+   subscription and hands them to `auth`, which resolves an entitlement
+   claim. This file never decides what anyone is entitled to.
    ============================================================ */
 
 import { el, make } from '../core/util.js';
 import { entitlements, CAPABILITIES, TIERS, FREE_LAYERS, FREE_MAX_TIER } from '../platform/entitlements.js';
+import { auth, PLANS, PROVIDERS } from '../platform/auth.js';
 import { SCALES, LAYERS } from '../core/store.js';
 
 const LOCK_ICON = '<i class="ic-lock"></i>';
@@ -65,14 +70,24 @@ export class PremiumUI {
       e.stopPropagation();
     });
     el('#btn-downgrade').addEventListener('click', () => {
+      auth.signOut();
       entitlements.reset();
       this.close();
     });
 
     this._buildPlans();
+    this._buildAccount();
     entitlements.on('tier', () => {
       this.syncTier();
       this.onTierChange?.();
+    });
+    entitlements.on('expired', () => {
+      this.hud.toast('<b>Subscription period ended</b> — back on Explorer. Renew from the account panel.', 6000);
+    });
+    auth.on('session', ({ reason }) => {
+      this.syncAccount();
+      if (reason === 'signIn') this.hud.toast(`Signed in as <b>${auth.session.email}</b>`, 3200);
+      if (reason === 'signOut') this.hud.toast('Signed out', 2400);
     });
 
     /* One prompt per capability per session. A freemium product that interrupts
@@ -97,6 +112,128 @@ export class PremiumUI {
     };
     fill(el('#plan-free-list'), FREE_POINTS);
     fill(el('#plan-pro-list'), PRO_POINTS);
+    el('#plan-free-price').textContent = PLANS.explorer.price;
+    el('#plan-pro-price').textContent = `${PLANS.professional.price} ${PLANS.professional.cadence}`;
+  }
+
+  /* ============================================================
+     Account
+     ============================================================ */
+
+  _buildAccount() {
+    this.signinBox = el('#signin');
+    this.signinMsg = el('#signin-msg');
+    const emailInput = el('#signin-email');
+
+    const submit = (provider = 'email') => {
+      const res = auth.signIn({ email: emailInput.value, provider });
+      if (res.ok) {
+        emailInput.value = '';
+        this.signinMsg.textContent = '';
+      } else {
+        this.signinMsg.innerHTML = `<b style="color:var(--coral)">${res.reason}</b>`;
+      }
+    };
+
+    el('#btn-signin').addEventListener('click', () => submit('email'));
+    emailInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit('email');
+      e.stopPropagation();
+    });
+
+    /* Provider buttons are mocked to the same local sign-in. They exist because
+       the shape of the flow is part of what is being scaffolded: each one becomes
+       a redirect or a magic-link request, and all three still finish at a claim. */
+    const host = el('#signin-providers');
+    host.innerHTML = '';
+    for (const p of PROVIDERS) {
+      if (p.id === 'email') continue;
+      const b = make('button', 'btn btn-sm', `Continue with ${p.name}`);
+      b.title = `${p.note} Mocked in this build — enter an address above and it signs in locally.`;
+      b.addEventListener('click', () => {
+        if (!el('#signin-email').value.trim()) {
+          this.signinMsg.innerHTML = `<b>${p.name} sign-in is mocked here</b> — enter an address above to continue.`;
+          return;
+        }
+        submit(p.id);
+      });
+      host.appendChild(b);
+    }
+
+    this.syncAccount();
+  }
+
+  /** Re-render the account strip, its actions and the plan calls-to-action. */
+  syncAccount() {
+    const d = auth.describe();
+    el('#acct-label').textContent = d.label;
+    el('#acct-detail').textContent = d.detail;
+    el('#acct').className = `acct acct-${d.tone}`;
+    el('#acct-avatar').textContent = auth.signedIn ? (auth.session.name || auth.session.email).charAt(0).toUpperCase() : '·';
+    this.signinBox.hidden = auth.signedIn;
+
+    const actions = el('#acct-actions');
+    actions.innerHTML = '';
+    const add = (label, cls, fn, title) => {
+      const b = make('button', `btn btn-sm${cls ? ` ${cls}` : ''}`, label);
+      if (title) b.title = title;
+      b.addEventListener('click', fn);
+      actions.appendChild(b);
+      return b;
+    };
+
+    if (!auth.signedIn) {
+      add('Sign in', 'btn-primary', () => el('#signin-email').focus());
+    } else {
+      const s = auth.session;
+      if (s.status === 'active') {
+        add('Cancel subscription', '', () => {
+          const r = auth.cancel();
+          this.syncAccount();
+          if (r.ok) {
+            this.hud.toast(
+              `Cancelled — Professional stays active until <b>${new Date(r.until).toLocaleDateString()}</b>`,
+              5000
+            );
+          }
+        }, 'Stays active until the end of the paid period, as a real subscription does');
+      } else {
+        add('Subscribe', 'btn-primary', () => this._subscribe('professional'));
+      }
+      add('Sign out', '', () => auth.signOut());
+    }
+
+    /* plan calls-to-action */
+    const freeCta = el('#plan-free-cta');
+    const proCta = el('#plan-pro-cta');
+    freeCta.innerHTML = '';
+    proCta.innerHTML = '';
+    if (entitlements.isPremium) {
+      proCta.appendChild(make('span', 'plan-current-tag', 'Your plan'));
+    } else {
+      const b = make('button', 'btn btn-primary', auth.signedIn ? 'Subscribe' : 'Sign in to subscribe');
+      b.addEventListener('click', () => {
+        if (!auth.signedIn) {
+          el('#signin-email').focus();
+          return;
+        }
+        this._subscribe('professional');
+      });
+      proCta.appendChild(b);
+      freeCta.appendChild(make('span', 'plan-current-tag', 'Your plan'));
+    }
+  }
+
+  _subscribe(planId) {
+    const res = auth.subscribe(planId);
+    this.syncAccount();
+    if (res.ok) {
+      this.msg.innerHTML = `<b style="color:var(--jade)">${res.plan.name} active.</b> Every scale, structure and tool is now available. No payment was taken — this is a mock checkout.`;
+      this.hud.toast('<b>Professional activated</b> — all scales, structures and tools unlocked', 4000);
+      setTimeout(() => this.close(), 1100);
+    } else {
+      this.msg.innerHTML = `<b style="color:var(--coral)">${res.reason}</b>`;
+    }
   }
 
   _redeem() {
@@ -118,6 +255,7 @@ export class PremiumUI {
       ? `${reason} Professional unlocks the full instrument.`
       : `You are on ${t.name}. ${t.blurb}`;
 
+    this.syncAccount();
     el('#plan-free').classList.toggle('plan-current', !entitlements.isPremium);
     el('#plan-premium').classList.toggle('plan-current', entitlements.isPremium);
 
@@ -152,12 +290,15 @@ export class PremiumUI {
     const t = entitlements.tierInfo;
     this.badge.textContent = t.badge;
     this.badge.classList.toggle('tier-pro', entitlements.isPremium);
-    this.tierName.textContent = t.name;
+    // the top-bar button doubles as the account button, so it shows who is signed
+    // in rather than repeating the tier name the badge beside it already carries
+    this.tierName.textContent = auth.signedIn ? auth.session.name : t.name;
     this.tierBtn.classList.toggle('is-pro', entitlements.isPremium);
     this.tierBtn.title = entitlements.isPremium
-      ? 'Professional — every scale, structure and tool'
-      : 'Explorer (free) — click to see what Professional adds';
+      ? `Professional${auth.signedIn ? ` · ${auth.session.email}` : ''} — account and plan`
+      : 'Explorer (free) — sign in, subscribe, or see what Professional adds';
     this.watermark.hidden = entitlements.isPremium;
+    if (this.signinBox) this.syncAccount();
   }
 
   /* ============================================================

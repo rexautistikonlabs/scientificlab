@@ -116,7 +116,9 @@ Because identity is the contract, everything downstream composes without engine 
 | `core/quality.js` | Tier table, hardware detection, adaptive quality controller |
 | `platform/ids.js` | ID derivation, aliases, region classification, manifest signature |
 | `platform/properties.js` | Base properties, live state, datasets, parameter sets, subject data, provenance |
-| `platform/entitlements.js` | Capability model, tiers, mock licence resolver |
+| `platform/entitlements.js` | Capability model, tiers, entitlement claims — the one seam a real licence service replaces |
+| `platform/auth.js` | Mock account and subscription; resolves a session into a claim |
+| `platform/datasets.js` | Research overlay format, validation, bundled dataset loading |
 | `platform/projects.js` | ID-keyed scene capture and restore, JSON export/import |
 | `tools/` | Measurement probes and annotations, both ID-anchored |
 | `ui/` | Systems panel, inspector, workspace panels, telemetry, frame diagnostics, entitlement states |
@@ -170,9 +172,10 @@ the live viscoelastic parameters, cross-midline comparison, dataset values and t
 Locked meters keep their label and their explanatory note rather than disappearing, so a user can
 see what the instrument would tell them and click straight through to the plan.
 
-Licensing is mocked for the prototype: a key in `localStorage`, any `PRO-XXXX` or `DEMO`. The
-resolver is one module returning the shape a real entitlement service returns, so swapping it for a
-signed token exchange touches no feature code.
+Both licensing paths are mocked for the prototype — an account with a subscription, or a licence key
+(`PRO-XXXX`, or `DEMO`) for offline and institutional seats. Both resolve to the same entitlement
+claim, which is the only thing that can change what is unlocked. See **Accounts and entitlement**
+below for the production substitution.
 
 ### Design decisions worth knowing
 
@@ -211,8 +214,9 @@ signed token exchange touches no feature code.
 ### Budget
 
 271 selectable structures · 1 740 anatomical IDs · 166 network nodes · 469 elements · ~246 draw
-calls and ~161 k triangles per frame · 13 shader programs · 238 geometries · 8 textures. One
-~228 kB gzipped bundle including three.js, no runtime downloads. Over 20 s of continuous
+calls and ~161 k triangles per frame · 13 shader programs · 241 geometries · 6 textures. One
+~236 kB gzipped bundle including three.js, plus the bundled research datasets as static JSON. No
+runtime downloads otherwise. Over 20 s of continuous
 simulation the network's resting load stays within 1 % of its calibrated baseline and maximum node
 drift is 15 mm, so nothing creeps.
 
@@ -326,6 +330,208 @@ final composite pass.
   hardware — precisely where an unfinished move reads as the application having hung.
 - **Context loss** — a laptop waking from sleep, a driver reset — is caught and reported rather than
   leaving a silently frozen canvas.
+
+### Measuring on real hardware
+
+Everything above was measured under a software rasteriser, which is the right tool for *ranking*
+levers and the wrong tool for predicting frame rates. Real numbers need real GPUs. The build carries
+what a tester needs:
+
+1. **Open the diagnostics.** <kbd>Shift</kbd>+<kbd>F</kbd>, the fps chip in the top bar, or
+   `Render ▸ Performance read-out`. It persists across reloads, so a measurement run does not begin
+   with four clicks. The first thing to check is the GPU line at the bottom: if it says
+   **SOFTWARE RASTERISER** in red, the machine is not using its GPU and nothing measured is
+   meaningful. On Chrome, `chrome://gpu` says why.
+2. **Lock a tier.** `Render ▸ Quality` — the choice persists, so Low / Medium / High / Ultra can each
+   be measured across reloads without Auto moving underneath the test. Auto is the shipping default;
+   locking is for measuring.
+3. **Measure the two views that matter.** Whole-body at default layers is the fill-rate worst case
+   because every envelope layer is drawn; the organ tier with all layers on is the overdraw worst
+   case. Orbit slowly for ten seconds in each and read the frame time, not the fps — frame time is
+   linear in cost and fps is not.
+4. **Read what Auto did.** The `log` button in the diagnostics panel lists every decision with the
+   frame time that caused it. `?qlog` in the URL traces the same lines to the console;
+   `CONTINUUM.qualityLog()` prints them as a table.
+5. **Send the numbers, not a description.** The `copy` button puts a full JSON report on the
+   clipboard: GPU string, core count, device pixel ratio, viewport, tier, render scale, the complete
+   tier settings, frame time, draw calls, triangles, drawn endings and beads, CPU solve time, the ID
+   manifest signature and the whole decision log. `CONTINUUM.diagnostics()` returns the same object.
+
+What good looks like, at 1920×1080 with the default layer set:
+
+| Tier | Target frame time | Reads as |
+| --- | --- | --- |
+| Ultra | ≤ 8 ms | modern discrete GPU with headroom to spare |
+| High | ≤ 16 ms | discrete GPU or Apple silicon holding 60 fps |
+| Medium | ≤ 16 ms | recent integrated graphics holding 60 fps |
+| Low | ≤ 33 ms | older integrated graphics, comfortably usable at 30 fps+ |
+
+If a tier misses its target on hardware that should make it, the diagnostics say which lever to
+suspect: high draw calls with low triangles means the layer set, not the geometry; frame time that
+scales with the square of the render scale is fill-bound as expected; frame time that does not move
+with render scale at all is CPU- or driver-bound and the `sim` row says whether the simulation is
+responsible (it should read well under 1 ms).
+
+Two artefacts belong to the software rasteriser and should **not** be read as GPU behaviour: the
+absolute frame times, which are one to two orders of magnitude slow, and the apparent absence of any
+gain from the translucent alpha cut and the specular-free lighting path, which a software rasteriser
+does not reward. Everything else — draw calls, triangles, drawn counts, CPU time, the ID manifest,
+Auto's decision sequence — is hardware-independent and can be trusted as it stands.
+
+## Research overlays
+
+An overlay is a flat map from anatomical ID to a number. That is the entire contract, and it is
+deliberately the smallest one that can work: what an external tool has to produce is a list of names
+it can look up in the manifest and a value for each. No coordinates, no geometry, no knowledge of how
+the model is built or drawn.
+
+Because of that, a shear-wave elastography export, a myotonometry session, a pressure-algometry sheet
+and a modelling result all arrive the same way, and any of them can be substituted for another
+without a code change.
+
+```json
+{
+  "continuumDataset": 1,
+  "id": "swe-shear-modulus-demo",
+  "name": "Shear modulus · resting",
+  "field": "value",
+  "unit": "kPa",
+  "source": "synthetic demonstration set · not measured data",
+  "note": "Shown in the legend and in the chip tooltip.",
+  "colorLow": "#2b6cb0",
+  "colorHigh": "#ff6f52",
+  "values": {
+    "MUSCLE_ERECTOR_SPINAE_L": { "value": 11.8, "sd": 1.9, "n": 12 },
+    "MUSCLE_ERECTOR_SPINAE_R": { "value": 16.4, "sd": 2.4, "n": 12 },
+    "FASCIA_THORACOLUMBAR": 38.6,
+    "ORGAN_DIAPHRAGM": 5.4,
+    "THORAX": 9.0
+  }
+}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `continuumDataset` | no | format version; omitted means current. A newer version is refused rather than guessed at |
+| `id` | **yes** | stable identifier; loading the same id twice replaces nothing — remove it first |
+| `name` | **yes** | shown on the chip and in the inspector row |
+| `field` | no | which key to read from record-valued entries; default `value` |
+| `unit` | no | shown after every value and on the legend scale |
+| `source` | no | provenance, shown under the legend and against every inspector row |
+| `note` | no | how to read the data; shown in the legend |
+| `colorLow` / `colorHigh` | no | six-digit hex; the ramp runs low → high across the dataset's own range |
+| `values` | **yes** | ID → number, or ID → record containing `field` |
+
+A value may be a bare number or a record. A record's other keys travel with it: `sd` and `n` are
+shown in the inspector as `62.5 ± 9.1 (n=12)`, because a measurement without its dispersion and its
+sample count is a number rather than a measurement.
+
+Keys may be **a canonical ID, an alias, or a region code**. `ORGAN_DIAPHRAGM` resolves to
+`MUSCLE_DIAPHRAGM`; `THORAX`, `PLANTAR_L` and `CERVICAL` fan out to every structure whose centre
+falls in that region. That is what lets a dataset authored against different vocabulary bind without
+being rewritten. Anything that cannot be resolved is **reported, not dropped** — the loader says how
+many of how many bound and names the first few that did not, because an overlay silently covering 30
+of 50 requested structures is worse than one that admits it.
+
+Overlays paint through one per-structure uniform, written only when the overlay changes. The solved
+field texture stays the single source of mechanical truth, so an active overlay costs nothing per
+frame and the living physiology and tension mapping keep running underneath it. Datasets travel
+inside saved projects, so a scene reloads with the data that was painted on it.
+
+To load one: `Research overlays ▸ load…` for a file from disk, or click a dataset that ships with the
+build. `CONTINUUM.api.validateDataset(objectOrJsonText)` checks a file without loading it, and
+`CONTINUUM.api.registerDataset({...})` registers one programmatically. Research overlays are a
+Professional capability, enforced in the property store rather than in the panel.
+
+Datasets that ship with the build live in `public/datasets/` and are served as ordinary static files,
+so adding or replacing one is a file copy and needs no rebuild — the same path an institution's own
+exports take. Register a new file in `BUNDLED_DATASETS` in `src/platform/datasets.js` to have it
+offered in the panel.
+
+## Deployment
+
+The build is a static site with no backend, no runtime downloads beyond its own assets, and no
+environment variables.
+
+```bash
+npm ci
+npm run build      # → dist/
+```
+
+Upload the **contents** of `dist/` to any static host — GitHub Pages, Netlify, Cloudflare Pages, S3
+behind CloudFront, or a directory on any web server. `dist/` contains `index.html`, one JS bundle,
+one CSS file, and `datasets/` for the bundled research overlays.
+
+- **Paths are relative** (`base: './'`), so the app works from a domain root, a subdirectory or a
+  project page (`example.github.io/continuum/`) without configuration.
+- **No SPA fallback is needed.** There is one HTML entry point and no client-side routing; the app
+  never asks the host for a path it did not serve. A catch-all rewrite is harmless but pointless.
+- **Serve `datasets/*.json` as `application/json`.** Every host does by default. The overlay loader
+  fetches them relative to the document, so they move with the app.
+- **Requirements:** a WebGL2 browser. Node ≥ 22.12 to build, nothing at runtime.
+- **Caching:** the JS and CSS filenames are content-hashed and can be cached indefinitely.
+  `index.html` should not be — it names the hashed assets. The default headers on the hosts above
+  already do the right thing.
+- **HTTPS is worth having** for two small reasons: the clipboard API behind the diagnostics `copy`
+  button needs a secure context, and `WEBGL_debug_renderer_info` is more reliably populated.
+- **Nothing is sent anywhere.** No analytics, no fonts, no CDN, no telemetry. The session, the
+  licence claim, saved projects and render preferences are all `localStorage` on the visitor's own
+  machine.
+
+Two query parameters exist for demos and for testing:
+
+| Parameter | Effect |
+| --- | --- |
+| `?skip` | enter the workspace directly, bypassing the start screen — for demo links and automated tests |
+| `?qlog` | trace every adaptive-quality decision to the console as it happens |
+
+The start screen otherwise shows once per browser and can be reopened from the reference overlay.
+
+## Accounts and entitlement
+
+The gate is already enforced in the engine. What accounts add is the *signal* that drives it, and the
+seam is one function:
+
+```
+┌───────────────┐  token   ┌────────────────┐  claim   ┌──────────────────┐
+│ auth provider │ ───────► │ your backend   │ ───────► │ applyClaim()     │
+│ magic link,   │          │ verify token   │          │ every engine gate│
+│ OAuth, SSO    │          │ + read billing │          │ reads the result │
+└───────────────┘          └────────────────┘          └──────────────────┘
+```
+
+`entitlements.applyClaim(claim)` is the only way the tier ever changes. A claim is small and says
+exactly what a gate needs to know:
+
+```js
+CONTINUUM.api.applyClaim({
+  tier: 'premium',            // 'free' | 'premium'
+  holder: 'you@example.org',  // for display and support
+  plan: 'professional',
+  source: 'session',          // 'anonymous' | 'licence-key' | 'session' | 'api'
+  issued: '2026-08-14T09:00:00Z',
+  expires: '2026-09-14T09:00:00Z', // null for no expiry; a lapsed claim degrades on read
+});
+```
+
+Nothing downstream of that call knows or cares where the claim came from. Adding real auth and real
+billing therefore adds no capability checks and changes none — every `can()`, the scale ceiling,
+`effectiveOpacity`, the tools and the overlay store keep working exactly as they do now.
+
+**What ships here is a mock**, and deliberately a thin one. `src/platform/auth.js` holds a session
+and a subscription record in `localStorage` and turns the pair into a claim. It never checks a
+capability and never touches a feature. To make it real:
+
+1. Replace `signIn` with the provider's redirect or magic-link request.
+2. Replace `_resolveClaim` with a `fetch` that posts the resulting token to your backend and returns
+   the claim. **This is the line that must move server-side**: a client that decides its own
+   entitlement can be edited, so the claim has to be issued by something the user does not control.
+3. Point `subscribe` at the payment provider's hosted checkout. The subscription arrives by webhook;
+   the next claim refresh carries it.
+
+Nothing else changes. The three provider buttons, the plan cards, the cancel-at-period-end behaviour
+and the licence-key path are already wired to that shape. Offline and institutional seats keep the
+key path, which resolves to the same claim with `source: 'licence-key'`.
 
 ## Scope
 

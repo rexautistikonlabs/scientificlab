@@ -228,6 +228,9 @@ const DEGRADE_HOLD = 0.6; // seconds of sustained slowness before acting
 const UPGRADE_HOLD = 2.6; // longer, so we do not oscillate
 const RETRY_HOLD = 14; // much longer before retrying a tier that already failed
 
+/** How many decisions to keep for inspection. */
+const LOG_LIMIT = 60;
+
 /**
  * Owns the current tier and render scale.
  *
@@ -265,6 +268,52 @@ export class QualityController {
     this._failed = new Array(TIER_ORDER.length).fill(0);
     this._changes = 0;
     this.lastAction = 'measuring';
+
+    /* Every decision, kept. Auto is the one part of this application whose
+       behaviour a tester cannot see by looking at the screen — a tier change and
+       a resolution change both just look like "it got better". The log is what
+       makes tuning on real hardware a matter of reading rather than guessing. */
+    this.decisions = [];
+    this.t0 = performance.now();
+    this.verbose = false;
+    this._record('start', `detected ${detected.tier} — ${detected.reason}`);
+  }
+
+  _record(kind, detail) {
+    const entry = {
+      at: +((performance.now() - this.t0) / 1000).toFixed(2),
+      kind,
+      tier: this.tierId,
+      dpr: +this.dpr.toFixed(2),
+      fps: +this.fps.toFixed(1),
+      frameMs: +(this.frameAvg * 1000).toFixed(1),
+      detail,
+    };
+    this.decisions.push(entry);
+    if (this.decisions.length > LOG_LIMIT) this.decisions.shift();
+    if (this.verbose) {
+      // eslint-disable-next-line no-console
+      console.info(
+        `[continuum:quality] +${entry.at}s ${kind} → ${entry.tier} @ ${entry.dpr}× · ${entry.fps} fps (${entry.frameMs} ms) · ${detail}`
+      );
+    }
+    return entry;
+  }
+
+  /** Turn console tracing on or off at runtime. */
+  trace(on = true) {
+    this.verbose = !!on;
+    return this.verbose;
+  }
+
+  /** The decision log as a readable table, for pasting into a bug report. */
+  logText() {
+    const rows = this.decisions.map(
+      (d) =>
+        `+${String(d.at).padStart(7)}s  ${d.kind.padEnd(11)} ${d.tier.padEnd(6)} ${String(d.dpr).padEnd(5)}× ` +
+        `${String(d.fps).padStart(6)} fps ${String(d.frameMs).padStart(7)} ms  ${d.detail}`
+    );
+    return ['     time  action      tier   scale     fps   frame   detail', ...rows].join('\n');
   }
 
   get tierId() {
@@ -308,6 +357,7 @@ export class QualityController {
       this._failed.fill(0);
     }
     this._hold();
+    this._record('mode', mode === 'auto' ? 'Auto — measuring' : `locked to ${mode}`);
     this.apply(mode === 'auto' ? 'auto' : 'manual');
   }
 
@@ -366,17 +416,20 @@ export class QualityController {
         this._setDpr(this.dpr - 0.14);
         this._hold();
         this.lastAction = `resolution ${this.dpr.toFixed(2)}×`;
+        this._record('scale-down', `slow for ${DEGRADE_HOLD}s → render scale ${this.dpr.toFixed(2)}×`);
       } else if (this.index > 0) {
         this._failed[this.index]++;
         this.index--;
         this.dpr = this._capFor(this.index);
         this._changes++;
         this._hold(1.6);
+        this._record('tier-down', `render scale already at floor → ${TIER_ORDER[this.index]}`);
         this.apply('auto-down');
       } else {
         // already at the floor of the lowest tier; stop trying so often
         this._hold(5);
         this.lastAction = 'at minimum';
+        this._record('floor', 'lowest tier at lowest render scale — nothing further to give');
       }
       return;
     }
@@ -392,6 +445,7 @@ export class QualityController {
         this._setDpr(this.dpr + 0.1);
         this._hold(1.4);
         this.lastAction = `resolution ${this.dpr.toFixed(2)}×`;
+        this._record('scale-up', `headroom → render scale ${this.dpr.toFixed(2)}×`);
       } else if (nextIndex < TIER_ORDER.length) {
         if (this._fast < hold) return;
         this._fast = 0;
@@ -399,6 +453,11 @@ export class QualityController {
         this.dpr = Math.min(this._capFor(this.index), Math.max(cap, this.dpr));
         this._changes++;
         this._hold(1.6);
+        this._record(
+          'tier-up',
+          `render scale at cap with headroom → ${TIER_ORDER[this.index]}` +
+            (this._failed[this.index] ? ` (retry ${this._failed[this.index]})` : '')
+        );
         this.apply('auto-up');
       }
       return;
@@ -423,6 +482,45 @@ export class QualityController {
       action: this.lastAction,
       geometry: this.builtGeometry ? 'full' : 'reduced',
       shortfall: this.geometryShortfall,
+      gpu: this.detected.gpu,
+      reason: this.detected.reason,
+    };
+  }
+
+  /**
+   * Everything a tester should send back with a report.
+   *
+   * Deliberately one call and one blob: asking someone to read nine numbers off a
+   * panel and retype them is how measurements arrive wrong.
+   */
+  diagnostics(extra = {}) {
+    return {
+      product: 'CONTINUUM',
+      when: new Date().toISOString(),
+      hardware: {
+        gpu: this.detected.gpu || '(not reported)',
+        reason: this.detected.reason,
+        cores: this.detected.cores,
+        mobile: this.detected.mobile,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        viewport: `${window.innerWidth}×${window.innerHeight}`,
+        userAgent: navigator.userAgent,
+      },
+      quality: {
+        mode: this.mode,
+        tier: this.tierId,
+        renderScale: +this.dpr.toFixed(3),
+        renderScaleCap: +this._capFor(this.index).toFixed(3),
+        geometry: this.builtGeometry ? 'full' : 'reduced',
+        settings: { ...this.tier },
+      },
+      frame: {
+        fps: +this.fps.toFixed(1),
+        frameMs: +(this.frameAvg * 1000).toFixed(2),
+        changes: this._changes,
+      },
+      ...extra,
+      decisions: this.decisions,
     };
   }
 }

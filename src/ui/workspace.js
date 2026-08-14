@@ -10,6 +10,7 @@
 
 import { el, make, formatLength } from '../core/util.js';
 import { entitlements } from '../platform/entitlements.js';
+import { BUNDLED_DATASETS, fetchDataset, parseDataset } from '../platform/datasets.js';
 import { MEASURE_MODES } from '../tools/measure.js';
 
 export class Workspace {
@@ -27,12 +28,16 @@ export class Workspace {
     this.measureMode = null;
 
     this._buildOverlays();
+    this._buildDatasetLoading();
     this._buildPathologies();
     this._buildMeasure();
     this._buildProjects();
 
+    /* Rebuild rather than sync: a dataset can appear at any time — loaded from
+       disk, fetched from the build, or restored with a project — and a restored
+       overlay with no chip to turn it off again would be a trap. */
     props.onChange(() => {
-      this.syncOverlays();
+      this._buildOverlays();
       this.syncPathologies();
     });
     store.on('restrictions', () => this.syncPathologies());
@@ -64,7 +69,68 @@ export class Workspace {
       host.appendChild(chip);
       this._overlayChips.set(ds.id, chip);
     }
+
+    /* Datasets shipped with the build, offered until they are loaded. They arrive
+       over HTTP like anyone else's export would, rather than being compiled in —
+       which is the point of demonstrating the format at all. */
+    for (const b of BUNDLED_DATASETS) {
+      if ([...this.props.datasets.values()].some((d) => d.name === b.label || d.source?.includes(b.url))) continue;
+      const chip = make('button', 'chip chip-load', `<i></i><span>${b.label}</span>`);
+      chip.title = `${b.note}\nClick to load from ${b.url}`;
+      chip.addEventListener('click', () => this._loadBundled(b));
+      host.appendChild(chip);
+      this._overlayChips.set(`bundled:${b.url}`, chip);
+    }
+
     this.syncOverlays();
+  }
+
+  /* ---------------- loading external datasets ---------------- */
+
+  _buildDatasetLoading() {
+    const file = el('#ds-file');
+    el('#btn-ds-load').addEventListener('click', () => {
+      if (!entitlements.require('data.overlays')) return;
+      file.click();
+    });
+    file.addEventListener('change', async () => {
+      const f = file.files?.[0];
+      file.value = '';
+      if (!f) return;
+      if (!entitlements.require('data.overlays')) return;
+      this._acceptDataset(parseDataset(await f.text()), f.name);
+    });
+  }
+
+  async _loadBundled(b) {
+    if (!entitlements.require('data.overlays', { dataset: b.url })) return;
+    this.hud.toast(`Loading <b>${b.label}</b>…`, 1600);
+    this._acceptDataset(await fetchDataset(b.url), b.label, b.url);
+  }
+
+  /**
+   * Register a validated dataset and report honestly what bound and what did not.
+   * An overlay that silently covers 30 of 50 requested structures is worse than
+   * one that says so.
+   */
+  _acceptDataset(res, label, sourceUrl = null) {
+    if (!res.ok) {
+      this.hud.toast(`Could not load <b>${label}</b> — ${res.reason}`, 5000);
+      return null;
+    }
+    const spec = { ...res.dataset };
+    if (sourceUrl) spec.source = `${spec.source} · ${sourceUrl}`;
+    const requested = Object.keys(spec.values).length;
+    const rec = this.props.registerDataset(spec);
+    this._buildOverlays();
+    this.props.setOverlay(rec.id);
+    const missed = rec.unresolved.length;
+    this.hud.toast(
+      `<b>${rec.name}</b> — ${rec.values.size} of ${requested} bound` +
+        (missed ? ` · ${missed} unresolved: ${rec.unresolved.slice(0, 3).join(', ')}${missed > 3 ? '…' : ''}` : ''),
+      missed ? 6500 : 3800
+    );
+    return rec;
   }
 
   _pickOverlay(id) {

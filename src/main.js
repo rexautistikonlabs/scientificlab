@@ -31,7 +31,9 @@ import { RECEPTORS } from './anatomy/info.js';
 import { IdRegistry } from './platform/ids.js';
 import { PropertyStore, registerReferenceData } from './platform/properties.js';
 import { entitlements, CAPABILITIES as CAP_NAMES } from './platform/entitlements.js';
+import { auth, PLANS } from './platform/auth.js';
 import { Projects } from './platform/projects.js';
+import { parseDataset, validateDataset } from './platform/datasets.js';
 import { Measurements } from './tools/measure.js';
 import { Annotations } from './tools/annotate.js';
 import { Hud } from './ui/hud.js';
@@ -216,7 +218,50 @@ async function main() {
     onTier: (tier) => applyQualityTier(tier),
     onScale: (v) => setDpr(v),
   });
+  // ?qlog traces every Auto decision to the console, for testing over a call
+  if (/[?&]qlog\b/.test(location.search)) qualityCtl.trace(true);
   qualityCtl.setMode(store.render.quality);
+
+  /** Full diagnostics blob — the thing a tester should send back. */
+  function diagnostics() {
+    return qualityCtl.diagnostics({
+      scene: {
+        drawCalls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        programs: renderer.info.programs?.length ?? null,
+        geometries: renderer.info.memory.geometries,
+        textures: renderer.info.memory.textures,
+        endingsDrawn: receptors.populations.reduce((n, p) => n + (p.drawn ?? p.count), 0),
+        beadsDrawn: signals.drawn,
+      },
+      simulation: {
+        cpuMsPerFrame: +cpuMs.toFixed(3),
+        nodes: solver.count,
+        elements: solver.elemCount,
+        structures: registry.list.length,
+        manifest: ids.manifestSignature(),
+      },
+      state: {
+        tier: entitlements.tier,
+        scaleTier: +scales.tier.toFixed(2),
+        visibleLayers: [...store.layers.values()].filter((l) => store.effectiveOpacity(l.id) > 0.004).map((l) => l.id),
+        overlay: props.activeOverlay?.id || null,
+      },
+    });
+  }
+
+  hud.onCopyDiagnostics = async () => {
+    const text = JSON.stringify(diagnostics(), null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      hud.toast('Diagnostics copied to the clipboard', 2600);
+    } catch {
+      // clipboard needs a secure context and permission; the console always works
+      // eslint-disable-next-line no-console
+      console.info(text);
+      hud.toast('Clipboard unavailable — diagnostics written to the console', 4200);
+    }
+  };
 
   const actions = {};
   const premium = new PremiumUI({ hud, onTierChange: () => applyTier() });
@@ -266,6 +311,9 @@ async function main() {
     panels.renderInspector();
     workspace.syncOverlays();
     workspace.syncPathologies();
+    // a downgrade must un-paint an active research overlay, not merely grey out
+    // the chip that selected it
+    props.paintOverlay();
     if (!entitlements.can('tool.measure')) {
       workspace.setMeasureMode(null);
       armedAnnotation = false;
@@ -659,6 +707,10 @@ async function main() {
     Onboarding.forget();
     onboarding.start({ force: true });
   });
+  el('#btn-replay-start').addEventListener('click', () => {
+    closeHelp();
+    el('#start').hidden = false;
+  });
 
   const playBtn = el('#btn-play');
   const syncPlay = () => {
@@ -824,21 +876,56 @@ async function main() {
   setTimeout(() => {
     el('#boot').remove();
   }, 900);
-  for (const id of ['#topbar', '#panel-left', '#panel-right', '#telemetry', '#scalebar']) el(id).hidden = false;
-  hud.perfVisible(store.render.perfHud);
 
-  /* First run gets the coach marks; every later visit gets the one-line prompt.
-     Showing both would be twice as much reading for half as much information. */
-  if (!Onboarding.seen) {
-    setTimeout(() => onboarding.start(), 900);
-  } else {
-    hud.toast(
-      entitlements.isPremium
-        ? 'Press <b>?</b> for the reference · wheel to traverse scale · click any structure'
-        : 'Explorer edition — press <b>?</b> for the reference, or <b>P</b> to see what Professional adds',
-      5600
-    );
+  /* ---------------- start screen, then the workspace ---------------- */
+
+  const STARTED_KEY = 'continuum.started.v1';
+  const seenStart = (() => {
+    try {
+      return localStorage.getItem(STARTED_KEY) === '1';
+    } catch {
+      return true; // no storage → do not gate the product behind a screen we cannot remember dismissing
+    }
+  })();
+  const startEl = el('#start');
+
+  function enterWorkspace() {
+    try {
+      localStorage.setItem(STARTED_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    startEl.hidden = true;
+    for (const id of ['#topbar', '#panel-left', '#panel-right', '#telemetry', '#scalebar']) el(id).hidden = false;
+    hud.perfVisible(store.render.perfHud);
+
+    /* First run gets the coach marks; every later visit gets the one-line prompt.
+       Showing both would be twice as much reading for half as much information. */
+    if (!Onboarding.seen) {
+      setTimeout(() => onboarding.start(), 700);
+    } else {
+      hud.toast(
+        entitlements.isPremium
+          ? 'Press <b>?</b> for the reference · wheel to traverse scale · click any structure'
+          : 'Explorer edition — press <b>?</b> for the reference, or <b>P</b> to see what Professional adds',
+        5600
+      );
+    }
   }
+
+  el('#start-free-price').textContent = PLANS.explorer.price;
+  el('#start-pro-price').textContent = `${PLANS.professional.price} ${PLANS.professional.cadence}`;
+  el('#btn-start-free').addEventListener('click', () => enterWorkspace());
+  el('#btn-start-pro').addEventListener('click', () => {
+    enterWorkspace();
+    premium.open();
+  });
+
+  /* Shown once per browser, and skippable with ?skip for testing and for demo
+     links. The model is already built and rendering behind it, so this is a
+     moment rather than a wait. */
+  if (seenStart || /[?&]skip\b/.test(location.search)) enterWorkspace();
+  else startEl.hidden = false;
 
   function frame() {
     requestAnimationFrame(frame);
@@ -974,6 +1061,7 @@ async function main() {
         cpuMs,
         endings: receptors.populations.reduce((n, p) => n + (p.drawn ?? p.count), 0),
         beads: signals.drawn,
+        decisions: qualityCtl.decisions,
       });
       uiAcc = 0;
     }
@@ -1004,10 +1092,14 @@ async function main() {
     postfx,
     quality: qualityCtl,
     setDpr,
+    /* validation helpers: one blob to send back, one table to read */
+    diagnostics,
+    qualityLog: () => qualityCtl.logText(),
     /* platform */
     ids,
     props,
     entitlements,
+    auth,
     projects,
     measures,
     annotations,
@@ -1023,12 +1115,22 @@ async function main() {
         return !!s;
       },
       registerDataset: (d) => props.registerDataset(d),
+      removeDataset: (id) => props.removeDataset(id),
+      /* Check a dataset before shipping it, without loading it: the same
+         validator the file picker uses. Accepts an object or JSON text. */
+      validateDataset: (input) => (typeof input === 'string' ? parseDataset(input) : validateDataset(input)),
       registerPathology: (p) => props.registerPathology(p),
       setOverlay: (d) => props.setOverlay(d),
       applyPathology: (p) => props.applyPathology(p, store),
       clearPathology: (p) => props.clearPathology(p, store),
       setTier: (t) => entitlements.setTier(t),
       capabilities: () => Object.keys(CAP_NAMES).map((k) => ({ id: k, granted: entitlements.can(k) })),
+      /* The entitlement seam. A host that already knows who the user is and what
+         they have bought calls applyClaim and nothing else — every gate in the
+         engine reads the result. */
+      applyClaim: (claim) => entitlements.applyClaim(claim),
+      claim: () => ({ ...entitlements.claim }),
+      session: () => (auth.session ? { ...auth.session } : null),
     },
   };
 }

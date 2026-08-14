@@ -152,6 +152,18 @@ export class Hud {
     this.perfPanel = el('#perfpanel');
     this.perfTier = el('#pp-tier');
     this.perfNote = el('#pp-note');
+    this.perfGpu = el('#pp-gpu');
+    this.perfLog = el('#pp-log');
+    this._logOpen = false;
+
+    el('#pp-toggle-log').addEventListener('click', () => {
+      this._logOpen = !this._logOpen;
+      this.perfLog.hidden = !this._logOpen;
+      el('#pp-toggle-log').classList.toggle('on', this._logOpen);
+      if (this._logOpen) this._renderLog();
+    });
+    el('#pp-copy').addEventListener('click', () => this.onCopyDiagnostics?.());
+
     const host = el('#pp-rows');
     host.innerHTML = '';
     this.perfRows = new Map();
@@ -197,9 +209,27 @@ export class Hud {
    * `renderer.info` is free but writing ten DOM nodes 60 times a second is not,
    * and the point of a performance panel is to not be part of the problem.
    */
-  updatePerf({ quality, info, cpuMs, endings, beads }) {
+  /** Auto's decision list, rendered only while the log is open. */
+  _renderLog() {
+    const rows = this._decisions || [];
+    if (!rows.length) {
+      this.perfLog.innerHTML = `<div><em>no decisions yet</em></div>`;
+      return;
+    }
+    this.perfLog.innerHTML = rows
+      .slice()
+      .reverse()
+      .map(
+        (d) =>
+          `<div><b>+${d.at}s</b><span>${d.kind}</span><em title="${d.detail} — ${d.fps} fps, ${d.frameMs} ms">${d.detail}</em></div>`
+      )
+      .join('');
+  }
+
+  updatePerf({ quality, info, cpuMs, endings, beads, decisions }) {
     if (!this.perfPanel || this.perfPanel.hidden) return;
     const buffer = this._buffer || '—';
+    this._decisions = decisions;
     const fps = quality.fps;
     this.perfTier.textContent = `${quality.tierName}${quality.mode === 'auto' ? ' · auto' : ''}`;
     this._setPerfRow('fps', fps.toFixed(0), fps < 26 ? 'bad' : fps < 48 ? 'warn' : 'good');
@@ -217,6 +247,19 @@ export class Hud {
       : quality.mode === 'auto'
         ? `holding 60 fps · last change: ${quality.action}`
         : 'fixed tier — Auto will not adjust';
+
+    /* The GPU string is what tells a tester whether they are looking at real
+       hardware at all. A software rasteriser produces numbers that mean nothing
+       about a real GPU, and mistaking one for the other wastes a test session. */
+    if (this._gpuShown !== quality.gpu) {
+      this._gpuShown = quality.gpu;
+      const soft = /swiftshader|llvmpipe|softpipe|mesa offscreen|basic render/i.test(quality.gpu || '');
+      this.perfGpu.innerHTML = quality.gpu
+        ? `${soft ? '<b style="color:var(--coral)">SOFTWARE RASTERISER — not indicative of GPU performance</b><br>' : ''}${quality.gpu}`
+        : 'GPU not reported by this browser';
+    }
+
+    if (this._logOpen) this._renderLog();
   }
 
   _buildMeters() {
