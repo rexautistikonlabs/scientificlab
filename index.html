@@ -43,6 +43,9 @@
         </div>
         <nav class="tb-scales" id="scale-rail" aria-label="Scale navigation"></nav>
         <div class="tb-right">
+          <button class="tb-btn tb-tier" id="btn-tier" title="Licence and plan">
+            <span class="tier-badge" id="tier-badge">FREE</span><span class="tb-btn-lbl" id="tier-name">Explorer</span>
+          </button>
           <button class="tb-btn" id="btn-play" title="Pause / resume physiology (Space)">
             <span class="ic-pause"></span><span class="tb-btn-lbl">Running</span>
           </button>
@@ -77,6 +80,25 @@
             <h2 class="pgroup-h">Receptor classes</h2>
             <div id="receptor-list" class="chip-grid"></div>
           </section>
+
+          <section class="pgroup" data-cap="data.overlays">
+            <h2 class="pgroup-h">Research overlays</h2>
+            <p class="pnote">
+              Datasets keyed by anatomical ID. Any external dataset that speaks the same IDs paints onto the
+              model without touching geometry.
+            </p>
+            <div id="overlay-list" class="chip-grid"></div>
+            <div id="overlay-legend" class="legend" hidden></div>
+          </section>
+
+          <section class="pgroup" data-cap="data.pathology">
+            <h2 class="pgroup-h">Parameter sets</h2>
+            <p class="pnote">
+              Named mechanical states applied through the same solver path as the manual tools.
+            </p>
+            <div id="pathology-list" class="chip-grid"></div>
+            <p class="pnote" id="pathology-note"></p>
+          </section>
         </div>
       </aside>
 
@@ -91,7 +113,7 @@
             </div>
           </section>
 
-          <section class="pgroup">
+          <section class="pgroup" data-cap="tool.intervention">
             <h2 class="pgroup-h">Mechanical intervention</h2>
             <div class="ctrl-rows" id="mech-controls"></div>
             <div class="btn-row">
@@ -99,6 +121,30 @@
               <button class="btn" id="btn-release">Release all</button>
             </div>
             <div id="restriction-list" class="rest-list"></div>
+          </section>
+
+          <section class="pgroup" data-cap="tool.measure">
+            <h2 class="pgroup-h">Measurement</h2>
+            <div class="ctrl-rows" id="measure-controls"></div>
+            <div class="btn-row">
+              <button class="btn" id="btn-annotate">Add note</button>
+              <button class="btn" id="btn-measure-clear">Clear all</button>
+            </div>
+            <div id="measure-list" class="rest-list"></div>
+          </section>
+
+          <section class="pgroup" data-cap="data.projects">
+            <h2 class="pgroup-h">Project</h2>
+            <div class="proj-save">
+              <input id="proj-name" type="text" placeholder="Scene name" aria-label="Project name" />
+              <button class="btn btn-primary btn-sm" id="btn-proj-save">Save</button>
+            </div>
+            <div id="proj-list" class="rest-list"></div>
+            <div class="btn-row">
+              <button class="btn btn-sm" id="btn-proj-export">Export JSON</button>
+              <button class="btn btn-sm" id="btn-proj-import">Import</button>
+            </div>
+            <input type="file" id="proj-file" accept="application/json,.json" hidden />
           </section>
 
           <section class="pgroup">
@@ -112,6 +158,14 @@
           </section>
         </div>
       </aside>
+
+      <!-- world-space overlays: measurement labels and annotations -->
+      <div id="overlay-layer" class="overlay-layer"></div>
+
+      <!-- free-tier mark -->
+      <div id="watermark" class="watermark" hidden>
+        <span>CONTINUUM</span><em>Explorer edition · macro anatomy</em>
+      </div>
 
       <!-- Bottom: live telemetry -->
       <section id="telemetry" class="telemetry" hidden>
@@ -179,8 +233,38 @@
                 <li><b>Added latency</b> — delay beyond what healthy tissue and normal conduction already cost.</li>
                 <li><b>Bandwidth</b> — how much of the frequency range a class is built to resolve still reaches it.</li>
               </ul>
+              <h3>Tools &amp; data</h3>
+              <ul class="ov-list">
+                <li><kbd>D</kbd> distance measurement · <kbd>N</kbd> add a note</li>
+                <li><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> save the scene · <kbd>P</kbd> plan</li>
+              </ul>
             </div>
           </div>
+
+          <h3 style="margin-top:18px">How the platform is put together</h3>
+          <ul class="ov-list ov-wide">
+            <li>
+              <b>A compact core engine.</b> One biotensegrity solve per frame publishes displacement and
+              tension into a small data texture that every tissue shader samples. That single solve drives
+              the deformation and colour of every system, the firing of every receptor population and every
+              number on the instrument strip.
+            </li>
+            <li>
+              <b>Everything else attaches by ID.</b> Each structure carries a permanent identifier —
+              <code>BONE_FEMUR_L</code>, <code>FASCIA_CERVICAL_DEEP</code>,
+              <code>RECEPTOR_PACINIAN_PLANTAR_L_01</code> — shown in the inspector and copyable. Properties,
+              live state, research datasets, parameter sets, notes, measurements and saved scenes all key off
+              it, and none of them touch geometry or materials. A dataset that speaks these IDs paints onto
+              the model without any code change, which is also what lets a scene saved today reload against a
+              future revision of the model.
+            </li>
+            <li>
+              <b>Two tiers.</b> Explorer covers macro anatomy at whole-body and region scale with the full
+              live instrument. Professional adds every scale, every layer, unlimited multi-select, mechanical
+              intervention, tension mapping, signal streams, measurement, annotation, overlays, parameter sets
+              and saved projects. The gate is enforced in the engine, not in the interface.
+            </li>
+          </ul>
           <h3 style="margin-top:18px">What changes as you descend</h3>
           <ul class="ov-list ov-wide">
             <li>
@@ -204,6 +288,39 @@
             and rate coding model published principles qualitatively rather than reproducing any measured
             dataset. It is not a diagnostic, clinical or treatment tool, and it does not describe any
             individual body.
+          </p>
+        </div>
+      </div>
+
+      <!-- Plan / licence -->
+      <div id="upgrade" class="overlay" hidden>
+        <div class="overlay-card upgrade-card">
+          <button class="overlay-x" id="upgrade-x" aria-label="Close">×</button>
+          <h2>PLAN</h2>
+          <p class="ov-lead" id="upgrade-lead"></p>
+          <div class="plan-grid">
+            <div class="plan" id="plan-free">
+              <header><span class="tier-badge">FREE</span><b>Explorer</b></header>
+              <ul id="plan-free-list"></ul>
+            </div>
+            <div class="plan plan-pro" id="plan-premium">
+              <header><span class="tier-badge tier-pro">PRO</span><b>Professional</b></header>
+              <ul id="plan-pro-list"></ul>
+            </div>
+          </div>
+          <div id="upgrade-reached" class="reached" hidden>
+            <h3>What you reached for</h3>
+            <ul id="upgrade-reached-list" class="ov-list"></ul>
+          </div>
+          <div class="key-row">
+            <input id="licence-key" type="text" placeholder="Licence key" aria-label="Licence key" spellcheck="false" />
+            <button class="btn btn-primary" id="btn-redeem">Activate</button>
+            <button class="btn" id="btn-downgrade">Use free tier</button>
+          </div>
+          <p class="ov-fine" id="licence-msg">
+            Prototype licensing. Any key of the form <code>PRO-XXXX</code>, or <code>DEMO</code>, activates
+            Professional locally; the resolver is a single module, so a real entitlement service drops in
+            without touching feature code.
           </p>
         </div>
       </div>

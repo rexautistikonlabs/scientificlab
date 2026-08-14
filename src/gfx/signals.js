@@ -250,7 +250,7 @@ export class SignalStreams {
   }
 
   update(store) {
-    const on = store.render.signals;
+    const on = store.renderEnabled('signals');
     this.points.visible = on && store.effectiveOpacity('nerve') > 0.004;
     if (!this.points.visible) return;
     this.material.uniforms.uOpacity.value = clamp(store.effectiveOpacity('nerve') * 1.15, 0, 1);

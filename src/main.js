@@ -26,8 +26,16 @@ import { Afferent } from './sim/afferent.js';
 import { buildBody } from './anatomy/index.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
 import { RECEPTORS } from './anatomy/info.js';
+import { IdRegistry } from './platform/ids.js';
+import { PropertyStore, registerReferenceData } from './platform/properties.js';
+import { entitlements, CAPABILITIES as CAP_NAMES } from './platform/entitlements.js';
+import { Projects } from './platform/projects.js';
+import { Measurements } from './tools/measure.js';
+import { Annotations } from './tools/annotate.js';
 import { Hud } from './ui/hud.js';
 import { Panels } from './ui/panels.js';
+import { PremiumUI } from './ui/premium.js';
+import { Workspace } from './ui/workspace.js';
 
 const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
 
@@ -98,13 +106,22 @@ async function main() {
 
   await setBoot(`${net.nodes.length} nodes · ${net.elements.length} elements`, 0.12);
 
+  /* ---------------- identity ---------------- */
+  // Assigned during the build, so no structure can exist without a permanent ID.
+  const ids = new IdRegistry();
+
   /* ---------------- body ---------------- */
   const { registry, locator, receptors } = await buildBody({
     solver,
     quality,
+    ids,
     onProgress: (label, t) => setBoot(`building ${label}`, 0.12 + t * 0.7),
   });
   scene.add(registry.root);
+
+  if (ids.collisions.length) {
+    console.warn('[continuum] anatomical ID collisions', ids.collisions);
+  }
 
   await setBoot('building receptor micro-anatomy', 0.86);
   const micro = buildMicroAnatomy();
@@ -122,6 +139,12 @@ async function main() {
   const overlay = new NetworkOverlay(solver);
   scene.add(overlay.group);
 
+  await setBoot('binding property layers', 0.9);
+
+  /* ---------------- property layer ---------------- */
+  const props = new PropertyStore({ ids, registry, solver, afferent }).buildBase();
+  registerReferenceData(props);
+
   await setBoot('calibrating', 0.94);
 
   /* ---------------- camera & scales ---------------- */
@@ -130,13 +153,73 @@ async function main() {
   controls.setSpan(SCALES[0].span * 1.05, true);
 
   const scales = new ScaleManager({ store, controls, registry, receptors, micro, signals, camera });
+  scales.applyEntitlements();
+
+  /* ---------------- tools ---------------- */
+  const overlayHost = el('#overlay-layer');
+  const measures = new Measurements({ registry, props, solver, camera, canvas, overlayHost });
+  const annotations = new Annotations({
+    registry,
+    solver,
+    camera,
+    canvas,
+    overlayHost,
+    onSelect: (id) => {
+      const s = registry.byAnatomicalId(id);
+      if (s) store.select(s.key, false);
+    },
+  });
+  scene.add(measures.group, annotations.group);
 
   /* ---------------- ui ---------------- */
   const hud = new Hud(store, scales, afferent, physio, solver);
   const actions = {};
-  const panels = new Panels({ store, registry, afferent, solver, actions });
+  const premium = new PremiumUI({ hud, onTierChange: () => applyTier() });
+  const panels = new Panels({ store, registry, afferent, solver, actions, props, premium });
+
+  const projects = new Projects({
+    store,
+    registry,
+    ids,
+    solver,
+    controls,
+    scales,
+    props,
+    measures,
+    annotations,
+    physio,
+  });
+  const workspace = new Workspace({ store, props, projects, measures, annotations, hud, premium, actions });
 
   hud.onScaleClick((i) => scales.goToTier(i));
+
+  /** next click places a note rather than selecting */
+  let armedAnnotation = false;
+
+  /**
+   * Re-apply everything the licence governs. Called at start-up and on any tier
+   * change, so upgrading takes effect immediately and without a reload.
+   */
+  function applyTier() {
+    scales.applyEntitlements();
+    registry.applyLayers(store, store.scaleFloat);
+    premium.syncTier();
+    premium.decorateSections();
+    premium.decorateScaleRail(hud.railButtons);
+    panels.syncLayers();
+    panels.syncReceptors();
+    panels.syncChainChips();
+    panels.syncGatedControls();
+    panels.renderInspector();
+    workspace.syncOverlays();
+    workspace.syncPathologies();
+    if (!entitlements.can('tool.measure')) {
+      workspace.setMeasureMode(null);
+      armedAnnotation = false;
+    }
+    measures.setVisible(entitlements.can('tool.measure'));
+    annotations.setVisible(entitlements.can('tool.annotate'));
+  }
 
   /* ============================================================
      Interaction
@@ -221,6 +304,43 @@ async function main() {
   canvas.addEventListener('click', (e) => {
     if (controls.dragged) return;
     const hit = pickAt(e.clientX, e.clientY);
+    const struct = hit?.object?.userData?.structure || null;
+
+    /* --- annotation placement takes the click --- */
+    if (armedAnnotation) {
+      if (!hit) {
+        hud.toast('Click on a structure to pin a note to it');
+        return;
+      }
+      annotations.add({ point: hit.point, structure: struct });
+      armedAnnotation = false;
+      canvas.classList.remove('measuring');
+      workspace.renderMeasureList();
+      return;
+    }
+
+    /* --- measurement tools take the click --- */
+    if (workspace.measureMode) {
+      if (!hit) {
+        hud.toast('Click on a structure to place a probe');
+        return;
+      }
+      if (workspace.measureMode === 'distance') {
+        const r = measures.addDistancePoint(hit.point, struct);
+        hud.toast(
+          r.state === 'awaiting'
+            ? `First point on <b>${struct?.name || 'point'}</b> — click the second`
+            : `Measured <b>${r.item.label || '—'}</b>`,
+          2600
+        );
+      } else {
+        const m = measures.addProbe(workspace.measureMode, hit.point, struct);
+        if (m) hud.toast(`${workspace.measureMode === 'tension' ? 'Tension' : 'Signal'} probe on <b>${struct.name}</b>`, 2600);
+      }
+      workspace.renderMeasureList();
+      return;
+    }
+
     if (!hit) {
       if (!e.shiftKey) store.clearSelection();
       return;
@@ -289,6 +409,7 @@ async function main() {
   }
 
   actions.apply = () => {
+    if (!entitlements.require('tool.intervention')) return;
     const keys = [...store.selection];
     if (!keys.length) {
       hud.toast('Select a structure first — click anything in the viewport');
@@ -339,6 +460,9 @@ async function main() {
       magnitude: store.tool.magnitude,
       radius: store.tool.radius,
       nodeCount: nodes.length,
+      // recorded by ID so a saved project can rebuild the same load against a
+      // future build, where node indices may differ
+      targetIds: keys.map((k) => ids.idFor(k)).filter(Boolean),
     });
     hud.toast(
       `<b>${tool?.name}</b> applied to ${label} — ${nodes.length} network nodes. Watch the load redistribute.`,
@@ -407,7 +531,26 @@ async function main() {
     store.emit('selection');
   };
 
+  actions.toast = (html) => hud.toast(html);
+
+  actions.armAnnotation = () => {
+    if (!entitlements.require('tool.annotate')) return;
+    armedAnnotation = true;
+    workspace.setMeasureMode(null);
+    canvas.classList.add('measuring');
+    hud.toast('Click any structure to pin a note to it');
+  };
+
+  actions.afterProjectLoad = () => {
+    registry.applyLayers(store, store.scaleFloat);
+    panels.syncLayers();
+    panels.renderInspector();
+    workspace.syncOverlays();
+    workspace.syncPathologies();
+  };
+
   actions.inspectReceptor = (id) => {
+    if (!entitlements.require('scale.deep', { receptor: id })) return;
     store.setMicroFocus(id);
     afferent.setFocus(id);
     const key = `receptor:${id}`;
@@ -490,6 +633,21 @@ async function main() {
       case '/':
         help.hidden = !help.hidden;
         break;
+      case 'p':
+        premium.toggle();
+        break;
+      case 'd':
+        workspace.setMeasureMode(workspace.measureMode === 'distance' ? null : 'distance');
+        break;
+      case 'n':
+        actions.armAnnotation();
+        break;
+      case 's':
+        if (e.metaKey || e.ctrlKey) {
+          e.preventDefault();
+          el('#btn-proj-save').click();
+        }
+        break;
       default:
         break;
     }
@@ -521,13 +679,21 @@ async function main() {
   let uiAcc = 0;
   let dprCooldown = 2;
 
-  // reveal the interface
+  /* ---------------- apply the licence, then reveal ---------------- */
+  applyTier();
+  workspace.renderMeasureList();
+
   el('#boot').classList.add('gone');
   setTimeout(() => {
     el('#boot').remove();
   }, 900);
   for (const id of ['#topbar', '#panel-left', '#panel-right', '#telemetry', '#scalebar']) el(id).hidden = false;
-  hud.toast('Press <b>?</b> for the reference · wheel to traverse scale · click any structure', 5200);
+  hud.toast(
+    entitlements.isPremium
+      ? 'Press <b>?</b> for the reference · wheel to traverse scale · click any structure'
+      : 'Explorer edition — press <b>?</b> for the reference, or <b>P</b> to see what Professional adds',
+    5600
+  );
 
   function frame() {
     const now = performance.now();
@@ -565,7 +731,9 @@ async function main() {
     GLOBAL.uTime.value += dt * (store.physio.running ? speed : 0.15);
     GLOBAL.uPulse.value = physio.pulse;
     GLOBAL.uBreath.value = physio.breath;
-    GLOBAL.uForceColor.value = store.render.forceColor ? 1 : 0;
+    // renderEnabled, not render.forceColor: a premium visualisation must not
+    // survive a licence downgrade just because its flag is still set
+    GLOBAL.uForceColor.value = store.renderEnabled('forceColor') ? 1 : 0;
     GLOBAL.uCamPos.value.copy(camera.position);
     // deformation is exaggerated slightly at coarse scales so millimetre motion
     // is readable from across the room, and true at close range
@@ -576,9 +744,11 @@ async function main() {
       dt
     );
 
-    /* ---- signal + overlay ---- */
+    /* ---- signal + overlay + world-space tools ---- */
     signals.update(store);
     overlay.update(store);
+    measures.update();
+    annotations.update();
 
     // nerve materials carry the live afferent state of their pathway
     for (const s of registry.ofLayer('nerve')) {
@@ -590,7 +760,7 @@ async function main() {
       u.uFidelity.value = pw ? clamp(pw.fidelity, 0.05, 1) : 1;
       u.uJitter.value = pw ? clamp(1 - pw.fidelity, 0, 1) : 0;
       u.uAmp.value = pw ? clamp(pw.amp, 0, 1) : 0.3;
-      u.uSignals.value = store.render.signals ? 1 : 0;
+      u.uSignals.value = store.renderEnabled('signals') ? 1 : 0;
     }
 
     // receptor populations pulse at their computed rate
@@ -632,8 +802,49 @@ async function main() {
 
   requestAnimationFrame(frame);
 
-  /* expose for debugging / integration */
-  window.CONTINUUM = { store, solver, physio, afferent, registry, scales, controls, scene, renderer };
+  /**
+   * Platform surface. Deliberately the same shape an embedding host or an API
+   * client would want: address structures by anatomical ID, read their property
+   * bag, register datasets and parameter sets, drive the licence.
+   */
+  window.CONTINUUM = {
+    /* core engine */
+    store,
+    solver,
+    physio,
+    afferent,
+    registry,
+    scales,
+    controls,
+    scene,
+    renderer,
+    /* platform */
+    ids,
+    props,
+    entitlements,
+    projects,
+    measures,
+    annotations,
+    /* convenience API, all ID-addressed */
+    api: {
+      manifest: () => ids.manifest(),
+      signature: () => ids.manifestSignature(),
+      get: (id) => props.bag(id),
+      live: (id) => props.live(id),
+      select: (id) => {
+        const s = registry.byAnatomicalId(id);
+        if (s) store.select(s.key, false);
+        return !!s;
+      },
+      registerDataset: (d) => props.registerDataset(d),
+      registerPathology: (p) => props.registerPathology(p),
+      setOverlay: (d) => props.setOverlay(d),
+      applyPathology: (p) => props.applyPathology(p, store),
+      clearPathology: (p) => props.clearPathology(p, store),
+      setTier: (t) => entitlements.setTier(t),
+      capabilities: () => Object.keys(CAP_NAMES).map((k) => ({ id: k, granted: entitlements.can(k) })),
+    },
+  };
 }
 
 main().catch((err) => {

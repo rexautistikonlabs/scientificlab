@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { clamp, smootherstep } from '../core/util.js';
+import { bodyRegionAt } from '../platform/ids.js';
 
 /**
  * Scale-dependent layer weighting.
@@ -37,9 +38,21 @@ const SCALE_WEIGHT = {
 };
 const weightFor = (layer, t) => (SCALE_WEIGHT[layer] ? SCALE_WEIGHT[layer](t) : 1);
 
+const _cLow = new THREE.Color();
+const _cHigh = new THREE.Color();
+
 export class Structure {
   constructor(o) {
+    /** internal build handle — stable, but an implementation detail */
     this.key = o.key;
+    /**
+     * Permanent public identifier. Everything outside the engine — properties,
+     * overlays, annotations, measurements, saved projects, external datasets —
+     * addresses structures by this and never by key, index or mesh.
+     */
+    this.id = o.id || null;
+    /** coarse body region code, for region-addressed data */
+    this.regionCode = o.regionCode || null;
     this.layer = o.layer;
     this.name = o.name;
     this.latin = o.latin || '';
@@ -77,6 +90,17 @@ export class Structure {
     }
   }
 
+  /** Overlay tint for a normalised dataset value, written once per change. */
+  setOverlayColor(lowHex, highHex, t) {
+    for (const m of this.meshes) {
+      const u = m.material?.uniforms?.uOverlayColor;
+      if (!u) continue;
+      _cLow.set(lowHex);
+      _cHigh.set(highHex);
+      u.value.copy(_cLow).lerp(_cHigh, clamp(t, 0, 1));
+    }
+  }
+
   setVisible(v) {
     for (const m of this.meshes) m.visible = v;
   }
@@ -87,9 +111,12 @@ export class Structure {
 }
 
 export class Registry {
-  constructor(solver) {
+  constructor(solver, ids = null) {
     this.solver = solver;
+    /** IdRegistry — assigns and resolves permanent anatomical IDs */
+    this.ids = ids;
     this.map = new Map();
+    this.byId = new Map();
     this.list = [];
     this.byLayer = new Map();
     this.root = new THREE.Group();
@@ -120,6 +147,20 @@ export class Registry {
       }
       return prev;
     }
+    // assign the permanent identity at registration, so nothing downstream can
+    // ever see a structure without one
+    if (this.ids) {
+      s.regionCode = s.regionCode || bodyRegionAt(s.center.x, s.center.y, s.center.z);
+      s.id = this.ids.register(s.key, {
+        kind: 'structure',
+        layer: s.layer,
+        name: s.name,
+        region: s.regionCode,
+        ref: s,
+      });
+      this.byId.set(s.id, s);
+    }
+
     this.map.set(s.key, s);
     this.list.push(s);
     if (!this.byLayer.has(s.layer)) this.byLayer.set(s.layer, []);
@@ -132,6 +173,14 @@ export class Registry {
 
   get(key) {
     return this.map.get(key);
+  }
+
+  /** Look up by permanent anatomical ID, alias, or build key. */
+  byAnatomicalId(idOrAlias) {
+    const direct = this.byId.get(String(idOrAlias).toUpperCase());
+    if (direct) return direct;
+    const key = this.ids?.keyFor(idOrAlias);
+    return key ? this.map.get(key) : this.map.get(idOrAlias) || null;
   }
 
   ofLayer(layer) {

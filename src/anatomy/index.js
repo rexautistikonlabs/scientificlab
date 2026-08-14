@@ -62,8 +62,8 @@ const SCALE_RANGE = {
   network: [0, 3],
 };
 
-export async function buildBody({ solver, quality, onProgress }) {
-  const registry = new Registry(solver);
+export async function buildBody({ solver, quality, onProgress, ids }) {
+  const registry = new Registry(solver, ids);
   const locator = new NodeLocator(solver.home, solver.count);
 
   const mat = (o = {}) => {
@@ -97,6 +97,7 @@ export async function buildBody({ solver, quality, onProgress }) {
     registry,
     solver,
     locator,
+    ids,
     mat,
     add,
     mkStructure: (def) => registry.add(def),

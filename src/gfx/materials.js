@@ -143,6 +143,8 @@ const TISSUE_FRAG = /* glsl */ `
   uniform float uStripeFreq;
   uniform float uXray;        // 1 = rim-dominant accumulation
   uniform float uXrayFloor;   // how much a face-on surface still contributes
+  uniform float uOverlay;     // 1 = a research dataset is painted on this structure
+  uniform vec3  uOverlayColor;
   uniform vec3  uCamPos;
 
   varying vec3  vWPos;
@@ -158,6 +160,12 @@ const TISSUE_FRAG = /* glsl */ `
     if (dot(N, V) < 0.0 && uFacing > 0.5) N = -N;
 
     vec3 albedo = forceRamp(uColor, vLoad, uForceColor * uForceAmount);
+
+    /* A research overlay replaces the tissue's own colour with the dataset ramp.
+       Driven by a per-structure uniform written only when the overlay changes,
+       so an active dataset costs nothing per frame and the solved field texture
+       stays the single source of mechanical truth. */
+    if (uOverlay > 0.5) albedo = mix(albedo, uOverlayColor, 0.88);
 
     // fibre striation — reads as collagen / muscle direction under the light
     if (uStripe > 0.001) {
@@ -221,6 +229,8 @@ const BASE_UNIFORMS = () => ({
   uStripeFreq: { value: 120.0 },
   uXray: { value: 0.0 },
   uXrayFloor: { value: 0.07 },
+  uOverlay: { value: 0.0 },
+  uOverlayColor: { value: new THREE.Color(0x4fd6e0) },
   uCamPos: GLOBAL.uCamPos,
   tField: GLOBAL.tField,
   uTime: GLOBAL.uTime,

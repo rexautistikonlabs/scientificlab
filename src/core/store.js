@@ -5,6 +5,7 @@
    ============================================================ */
 
 import { Emitter, clamp } from './util.js';
+import { entitlements } from '../platform/entitlements.js';
 
 /** Ordered layer definitions — this array drives the systems panel. */
 export const LAYERS = [
@@ -239,10 +240,18 @@ class Store extends Emitter {
     return this.layers.get(id);
   }
 
-  /** Effective opacity accounting for isolation state. 0 → not drawn. */
+  /**
+   * Effective opacity accounting for entitlement and isolation state.
+   * 0 → not drawn, and therefore not pickable either.
+   *
+   * The licence check is here rather than in the UI on purpose: this is the one
+   * function every renderer and the raycaster both go through, so a premium
+   * layer cannot be revealed by scripting the store or by a stale UI state.
+   */
   effectiveOpacity(id) {
     const l = this.layers.get(id);
     if (!l || !l.visible) return 0;
+    if (!entitlements.canSeeLayer(id)) return 0;
     if (this.solo.size && !this.solo.has(id)) return 0;
     return l.opacity;
   }
@@ -250,6 +259,10 @@ class Store extends Emitter {
   setLayerVisible(id, v) {
     const l = this.layers.get(id);
     if (!l || l.visible === v) return;
+    if (v && !entitlements.canSeeLayer(id)) {
+      entitlements.require('layers.advanced', { layer: id });
+      return;
+    }
     l.visible = v;
     this.emit('layers');
   }
@@ -262,11 +275,13 @@ class Store extends Emitter {
   setLayerOpacity(id, v) {
     const l = this.layers.get(id);
     if (!l) return;
+    if (!entitlements.require('layers.opacity', { layer: id })) return;
     l.opacity = clamp(v, 0, 1);
     this.emit('layers');
   }
 
   toggleSolo(id) {
+    if (!entitlements.require('select.isolate', { layer: id })) return;
     if (this.solo.has(id)) this.solo.delete(id);
     else this.solo.add(id);
     this.emit('layers');
@@ -280,13 +295,20 @@ class Store extends Emitter {
 
   showAll() {
     this.solo.clear();
-    for (const l of this.layers.values()) l.visible = true;
+    for (const l of this.layers.values()) {
+      if (entitlements.canSeeLayer(l.id)) l.visible = true;
+    }
     this.emit('layers');
   }
 
   /* ---------- selection ---------- */
 
   select(key, additive = false) {
+    // free tier gets single selection; additive requests collapse to a replace
+    if (additive && !entitlements.can('select.multi')) {
+      entitlements.require('select.multi', { key });
+      additive = false;
+    }
     if (!additive) this.selection.clear();
     if (key) {
       if (additive && this.selection.has(key)) this.selection.delete(key);
@@ -334,19 +356,43 @@ class Store extends Emitter {
 
   /* ---------- params ---------- */
 
+  /** Physiology knobs that shape the model rather than just its rate. */
+  static ADVANCED_PHYSIO = ['tone', 'motility', 'breathDepth', 'speed'];
+
   setPhysio(k, v) {
+    if (Store.ADVANCED_PHYSIO.includes(k) && !entitlements.require('physio.advanced', { param: k })) return;
     this.physio[k] = v;
     this.emit('physio', k);
   }
 
   setTool(k, v) {
+    if (!entitlements.require('tool.intervention', { param: k })) return;
     this.tool[k] = v;
     this.emit('tool', k);
   }
 
+  /** Render toggles that are premium visualisation features. */
+  static GATED_RENDER = {
+    forceColor: 'viz.forceColor',
+    signals: 'viz.signals',
+    network: 'viz.network',
+  };
+
   setRender(k, v) {
+    const cap = Store.GATED_RENDER[k];
+    if (cap && v && !entitlements.require(cap, { param: k })) return;
     this.render[k] = v;
     this.emit('render', k);
+  }
+
+  /**
+   * Whether a render feature should actually draw. Consumers must use this
+   * rather than reading `render[k]` directly, so a flag left true by a licence
+   * downgrade cannot keep a premium visualisation on screen.
+   */
+  renderEnabled(k) {
+    const cap = Store.GATED_RENDER[k];
+    return !!this.render[k] && (!cap || entitlements.can(cap));
   }
 
   /* ---------- scale ---------- */

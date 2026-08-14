@@ -11,6 +11,7 @@
 
 import * as THREE from 'three';
 import { SCALES } from './store.js';
+import { entitlements } from '../platform/entitlements.js';
 import { clamp, lerp, smootherstep, formatLength, niceRound } from './util.js';
 import { receptorSize, receptorsToScale } from '../anatomy/receptors.js';
 
@@ -41,6 +42,7 @@ export class ScaleManager {
     this.camera = camera;
 
     this.tier = 0;
+    this.maxTier = SCALES.length - 1;
     this.lastGate = -99;
     this._microActive = null;
     this._microPos = new THREE.Vector3(0, 1.2, 0);
@@ -57,9 +59,30 @@ export class ScaleManager {
     ];
   }
 
+  /**
+   * Re-read the licence and clamp how far the camera may travel. Called at
+   * start-up and whenever the tier changes. The floor is a real constraint on
+   * the controller, so a free-tier user cannot reach a premium scale by wheel,
+   * pinch, keyboard, or by calling goToTier directly.
+   */
+  applyEntitlements() {
+    const maxTier = entitlements.maxScaleTier();
+    this.maxTier = maxTier;
+    if (maxTier >= SCALES.length - 1) {
+      this.controls.minDist = 0.00035;
+      return;
+    }
+    // a little past the deepest allowed tier, so that tier is comfortable to sit in
+    this.controls.setMinSpan(SCALES[maxTier].span * 0.92);
+  }
+
   /** Jump to a tier, keeping the current look-at when it is already useful. */
   goToTier(index, opts = {}) {
-    const i = clamp(Math.round(index), 0, SCALES.length - 1);
+    let i = clamp(Math.round(index), 0, SCALES.length - 1);
+    if (i > this.maxTier) {
+      entitlements.require('scale.deep', { tier: SCALES[i].id });
+      i = this.maxTier;
+    }
     const def = this.defaults[i];
     const keepTarget = opts.keepTarget ?? (this.tier > 0.6 && i > 0);
     if (opts.instant) {
@@ -84,6 +107,7 @@ export class ScaleManager {
   /** Frame a structure, choosing the tier that suits its size. */
   focus(structure, opts = {}) {
     if (!structure) return Promise.resolve();
+    if (!entitlements.require('camera.freeFly', { key: structure.key })) return Promise.resolve();
     const span = clamp(structure.span, 0.004, 2.1);
     this.store.focus = structure.key;
     return this.controls.flyTo({

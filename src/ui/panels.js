@@ -8,18 +8,22 @@ import { el, make, clamp } from '../core/util.js';
 import { LAYERS, TOOLS } from '../core/store.js';
 import { CHAINS } from '../anatomy/chains.js';
 import { RECEPTORS, RECEPTOR_ORDER, describe } from '../anatomy/info.js';
+import { entitlements, CAPABILITIES } from '../platform/entitlements.js';
 
 export class Panels {
-  constructor({ store, registry, afferent, solver, actions }) {
+  constructor({ store, registry, afferent, solver, actions, props, premium }) {
     this.store = store;
     this.registry = registry;
     this.afferent = afferent;
     this.solver = solver;
     this.actions = actions;
+    this.props = props;
+    this.premium = premium;
 
     this._rows = new Map();
     this._chainChips = new Map();
     this._recChips = new Map();
+    this._gatedControls = [];
     this._inspKeys = '';
     this._liveNodes = null;
 
@@ -98,11 +102,13 @@ export class Panels {
     const solo = this.store.solo;
     for (const [id, r] of this._rows) {
       const l = this.store.layer(id);
-      r.row.classList.toggle('off', !l.visible);
+      const visible = this.store.effectiveOpacity(id) > 0.004 || (l.visible && !solo.size);
+      r.row.classList.toggle('off', !l.visible || !visible);
       r.row.classList.toggle('solo', solo.has(id));
       r.row.classList.toggle('dim', solo.size > 0 && !solo.has(id));
       if (document.activeElement !== r.alpha) r.alpha.value = String(Math.round(l.opacity * 100));
     }
+    this.premium?.decorateLayerRows(this._rows);
   }
 
   /* ============================================================
@@ -158,13 +164,19 @@ export class Panels {
       chip.style.outline = this.store.microFocus === id ? '1px solid currentColor' : 'none';
       chip.style.outlineOffset = '1px';
     }
+    // the receptor layer itself is premium, so the whole class list follows it
+    this.premium?.decorateChips([...this._recChips.values()], 'layers.advanced');
+  }
+
+  syncChainChips() {
+    this.premium?.decorateChips([...this._chainChips.values()], 'layers.advanced');
   }
 
   /* ============================================================
      Controls
      ============================================================ */
 
-  _slider(host, { label, min, max, step, value, format, onInput, title }) {
+  _slider(host, { label, min, max, step, value, format, onInput, title, cap }) {
     const row = make('div', 'ctrl');
     row.innerHTML = `
       <span class="ctrl-lbl">${label}</span>
@@ -173,6 +185,11 @@ export class Panels {
     if (title) row.title = title;
     const val = row.querySelector('.ctrl-val');
     const input = row.querySelector('input');
+    // a control the licence does not cover is disabled rather than inert: a
+    // slider that moves and changes nothing is worse than one that cannot move
+    if (cap) {
+      this._gatedControls.push({ cap, input, row, label });
+    }
     const paint = () => {
       val.textContent = format(+input.value);
     };
@@ -208,14 +225,34 @@ export class Panels {
     return { row, buttons };
   }
 
-  _check(host, { label, value, onChange, title }) {
+  _check(host, { label, value, onChange, title, cap }) {
     const wrap = make('label', 'ctrl-check');
     wrap.innerHTML = `<input type="checkbox" ${value ? 'checked' : ''}><span>${label}</span>`;
     if (title) wrap.title = title;
     const input = wrap.querySelector('input');
     input.addEventListener('change', () => onChange(input.checked));
     host.appendChild(wrap);
+    if (cap) this._gatedControls.push({ cap, input, row: wrap, label });
     return input;
+  }
+
+  /**
+   * Disable every control the licence does not cover, and label it so the reason
+   * is obvious. Re-runnable on tier change.
+   */
+  syncGatedControls() {
+    for (const g of this._gatedControls) {
+      const granted = entitlements.can(g.cap);
+      g.input.disabled = !granted;
+      g.row.classList.toggle('ctrl-locked', !granted);
+      if (!granted) {
+        const info = CAPABILITIES[g.cap];
+        g.row.title = `${g.label} — Professional${info?.blurb ? `. ${info.blurb}` : ''}`;
+        g.row.onclick = () => this.premium?.open(`${info?.name || g.label} is a Professional feature.`);
+      } else {
+        g.row.onclick = null;
+      }
+    }
   }
 
   _buildMechControls() {
@@ -292,6 +329,7 @@ export class Panels {
       format: (v) => `${v.toFixed(0)} %`,
       onInput: (v) => this.store.setPhysio('breathDepth', v / 100),
       title: 'Commanded diaphragm and rib-cage excursion',
+      cap: 'physio.advanced',
     });
     this._slider(host, {
       label: 'Myofascial tone',
@@ -302,6 +340,7 @@ export class Panels {
       format: (v) => `${v.toFixed(0)} %`,
       onInput: (v) => this.store.setPhysio('tone', v / 100),
       title: 'Global resting pre-tension of the whole network',
+      cap: 'physio.advanced',
     });
     this._slider(host, {
       label: 'Visceral motility',
@@ -312,6 +351,7 @@ export class Panels {
       format: (v) => `${v.toFixed(0)} %`,
       onInput: (v) => this.store.setPhysio('motility', v / 100),
       title: 'Amplitude of gastric and intestinal motor activity',
+      cap: 'physio.advanced',
     });
     this._slider(host, {
       label: 'Time rate',
@@ -322,6 +362,7 @@ export class Panels {
       format: (v) => `${(v / 100).toFixed(2)} ×`,
       onInput: (v) => this.store.setPhysio('speed', v / 100),
       title: 'Slow the physiology down to inspect a single cycle',
+      cap: 'physio.advanced',
     });
   }
 
@@ -334,12 +375,14 @@ export class Panels {
       value: r.forceColor,
       onChange: (v) => this.store.setRender('forceColor', v),
       title: 'Map the solved tension field onto every tissue surface',
+      cap: 'viz.forceColor',
     });
     this._check(host, {
       label: 'Afferent signal streams',
       value: r.signals,
       onChange: (v) => this.store.setRender('signals', v),
       title: 'Draw travelling action potentials along the pathways',
+      cap: 'viz.signals',
     });
     this._check(host, {
       label: 'Tension network overlay',
@@ -349,6 +392,7 @@ export class Panels {
         this.store.setLayerVisible('network', v);
       },
       title: 'Show the cables and struts the model is solved on',
+      cap: 'viz.network',
     });
     this._slider(host, {
       label: 'Bloom',
@@ -460,15 +504,31 @@ export class Panels {
     const s = this.registry.get(keys[0]);
     if (!s) return;
     const layer = this.store.layer(s.layer);
-    const info = describe(s);
-    const recs = this.afferent.describeFor(info.receptors);
+    // Everything below comes from the property store, keyed by the structure's
+    // permanent ID — base anatomy, any bound datasets, active parameter sets and
+    // subject data all arrive through the same door.
+    const bag = this.props?.bag(s.id);
+    const info = bag?.base || describe(s);
+    const recs = this.afferent.describeFor(info.receptors || []);
     this._liveNodes = s.nodes;
+
+    const extra = (bag?.fields || [])
+      .map(
+        (f) =>
+          `<dt>${f.label}</dt><dd>${typeof f.value === 'number' ? f.value.toLocaleString() : f.value}${
+            f.unit ? ` <small style="color:var(--ink-3)">${f.unit}</small>` : ''
+          }<span class="prov">${f.source}</span></dd>`
+      )
+      .join('');
 
     host.innerHTML = `
       <div class="insp-head">
         <div class="insp-kicker"><i style="color:${layer?.color || '#8ea8bd'}"></i>${layer?.name || s.layer}${s.group ? ` · ${s.group}` : ''}</div>
         <h3 class="insp-title">${s.name}</h3>
         ${s.latin ? `<div class="insp-latin">${s.latin}</div>` : ''}
+        <div class="insp-id" id="insp-id" title="Permanent anatomical ID — the key every dataset, annotation and saved project uses. Click to copy.">
+          <span>${s.id || '—'}</span><small>copy</small>
+        </div>
       </div>
       ${info.note ? `<p class="insp-desc">${info.note}</p>` : ''}
 
@@ -477,6 +537,7 @@ export class Panels {
         <dt>Tension vs. rest</dt><dd id="live-load">—</dd>
         <div class="bar"><i id="live-load-bar"></i></div>
         <dt>Strain rate</dt><dd id="live-rate">—</dd>
+        <dt>Displacement</dt><dd id="live-disp">—</dd>
         <dt>Local stiffening</dt><dd id="live-stiff">—</dd>
         <dt>Local viscosity</dt><dd id="live-visc">—</dd>
         <dt>Interstitial pressure</dt><dd id="live-press">—</dd>
@@ -486,18 +547,24 @@ export class Panels {
       <dl class="kv">
         <dt>Composition</dt><dd>${info.tissue}</dd>
         <dt>Elastic modulus</dt><dd>${info.modulus}</dd>
-        <dt>Viscoelasticity</dt><dd>${info.tau}</dd>
-        <dt>Preferred stimulus</dt><dd>${info.stimulus}</dd>
+        <dt>Viscoelasticity</dt><dd>${info.viscoelasticity || info.tau}</dd>
+        <dt>Preferred stimulus</dt><dd>${info.preferredStimulus || info.stimulus}</dd>
+        <dt>Region</dt><dd>${(s.regionCode || '—').toLowerCase().replace(/_/g, ' ')}</dd>
+        <dt>Network nodes</dt><dd>${s.nodes.length}</dd>
       </dl>
       <p class="insp-desc">${info.role}</p>
+
+      ${extra ? `<div class="insp-sub">Bound data</div><dl class="kv">${extra}</dl>` : ''}
 
       <div class="insp-sub">Sensory population</div>
       <div id="insp-recs"></div>
 
       <div class="insp-sub">Afferent destination</div>
       <dl class="kv">
-        <dt>${info.pathway.name}</dt><dd id="live-pw">—</dd>
-        <dt>Carries</dt><dd style="text-align:left;font-family:var(--sans);font-size:10.5px">${info.pathway.carries}</dd>
+        <dt>${info.pathwayName || info.pathway?.name}</dt><dd id="live-pw">—</dd>
+        <dt>Carries</dt><dd style="text-align:left;font-family:var(--sans);font-size:10.5px">${
+          info.pathwayCarries || info.pathway?.carries
+        }</dd>
       </dl>
 
       <div class="insp-actions">
@@ -506,6 +573,14 @@ export class Panels {
         <button class="btn btn-sm" id="insp-hide">Hide</button>
         <button class="btn btn-sm" id="insp-apply">Apply load</button>
       </div>`;
+
+    const idBox = el('#insp-id', host);
+    idBox?.addEventListener('click', () => {
+      navigator.clipboard?.writeText(s.id || '').then(
+        () => this.actions.toast?.(`Copied <b>${s.id}</b>`),
+        () => {}
+      );
+    });
 
     const rh = el('#insp-recs', host);
     if (!recs.length) {
@@ -556,6 +631,16 @@ export class Panels {
     // reference that means anything locally
     set('live-load', Math.abs(dev) < 0.02 ? 'at rest' : `${dev > 0 ? '+' : ''}${(dev * 100).toFixed(0)} % vs rest`);
     set('live-rate', `${rate >= 0 ? '+' : ''}${rate.toFixed(2)} /s`);
+    {
+      let d = 0;
+      for (const i of nodes) {
+        const dx = s.pos[i * 3] - s.home[i * 3];
+        const dy = s.pos[i * 3 + 1] - s.home[i * 3 + 1];
+        const dz = s.pos[i * 3 + 2] - s.home[i * 3 + 2];
+        d += Math.sqrt(dx * dx + dy * dy + dz * dz);
+      }
+      set('live-disp', `${((d / nodes.length) * 1000).toFixed(2)} mm`);
+    }
     set('live-stiff', stiff > 0.002 ? `+${(stiff * 100).toFixed(0)} %` : 'baseline');
     set('live-visc', visc > 0.002 ? `+${(visc * 100).toFixed(0)} %` : 'baseline');
     set('live-press', press > 0.002 ? `${(press * 100).toFixed(0)} %` : 'baseline');

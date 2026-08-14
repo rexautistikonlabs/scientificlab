@@ -20,6 +20,7 @@ import { muscleTable } from './muscles.js';
 import { RECEPTORS, RECEPTOR_ORDER } from './info.js';
 import { receptorMaterial } from '../gfx/materials.js';
 import { spline } from './build.js';
+import { bodyRegionAt } from '../platform/ids.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -246,12 +247,14 @@ function glyph(id) {
    ------------------------------------------------------------ */
 
 export function buildReceptors(ctx) {
-  const { registry, solver, locator, q, mkStructure } = ctx;
+  const { registry, solver, locator, q, mkStructure, ids } = ctx;
   const group = new THREE.Group();
   group.name = 'receptorFields';
 
   const populations = [];
   const tmp = [0, 0, 0];
+  /** per (class, region) counters, so instance IDs read RECEPTOR_PACINIAN_PLANTAR_L_01 */
+  const instanceCounters = new Map();
 
   RECEPTOR_ORDER.forEach((id, ci) => {
     const def = RECEPTORS[id];
@@ -265,6 +268,10 @@ export function buildReceptors(ctx) {
     const scale = new Float32Array(count);
     const nodeSet = new Set();
 
+    const instanceIds = new Array(count);
+    const instanceSites = new Array(count);
+    const instanceRegions = new Array(count);
+
     for (let i = 0; i < count; i++) {
       const site = cfg.sites[Math.floor(r() * cfg.sites.length) % cfg.sites.length];
       const p = sampleSite(site, r);
@@ -276,6 +283,26 @@ export function buildReceptors(ctx) {
       nodeSet.add(nd);
       phase[i] = r();
       scale[i] = 0.7 + r() * 0.7;
+
+      /* Every individual ending gets its own permanent ID. Research data about a
+         specific receptor has to have somewhere to attach, and a population
+         average is not that. The instance stays part of the single instanced
+         draw call — identity costs no draw calls and no per-frame work. */
+      const region = bodyRegionAt(p.x, p.y, p.z);
+      const ck = `${id}:${region}`;
+      const n = (instanceCounters.get(ck) || 0) + 1;
+      instanceCounters.set(ck, n);
+      instanceSites[i] = site;
+      instanceRegions[i] = region;
+      instanceIds[i] = ids
+        ? ids.register(`receptor:${id}:${region}:${String(n).padStart(2, '0')}`, {
+            kind: 'receptorInstance',
+            layer: 'receptor',
+            name: `${def.short} · ${region.toLowerCase().replace(/_/g, ' ')} ${n}`,
+            region,
+            ref: { populationId: id, index: i },
+          })
+        : null;
     }
 
     const base = glyph(id);
@@ -324,6 +351,9 @@ export function buildReceptors(ctx) {
       structure: s,
       nodes,
       offsets,
+      instanceIds,
+      instanceSites,
+      instanceRegions,
       trueSize: def.size,
       glyphScale: cfg.size,
       nodeSet: [...nodeSet],
@@ -331,7 +361,26 @@ export function buildReceptors(ctx) {
   });
 
   registry.layerGroup('receptor').add(group);
+
+  // back-fill the population reference on each instance record now that the
+  // population objects exist
+  if (ids) {
+    const byPop = new Map(populations.map((p) => [p.id, p]));
+    for (const rec of ids.byId.values()) {
+      if (rec.kind !== 'receptorInstance') continue;
+      rec.ref.population = byPop.get(rec.ref.populationId) || null;
+    }
+  }
+
   return { group, populations };
+}
+
+/** Resolve a receptor instance ID to its world position. */
+export function receptorInstancePosition(rec, out) {
+  const pop = rec?.ref?.population;
+  if (!pop) return null;
+  const i = rec.ref.index;
+  return out.set(pop.offsets[i * 3], pop.offsets[i * 3 + 1], pop.offsets[i * 3 + 2]);
 }
 
 /**

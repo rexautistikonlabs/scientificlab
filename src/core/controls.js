@@ -180,6 +180,23 @@ export class Controls {
     if (immediate) this._dist = d;
   }
 
+  /** Convert a view span in metres to the orbit distance that produces it. */
+  distForSpan(span) {
+    const f = (this.camera.fov * Math.PI) / 180;
+    return span / (2 * Math.tan(f / 2));
+  }
+
+  /**
+   * Hard floor on how far in the camera may travel. Used by the entitlement gate
+   * to stop free-tier zoom at the region scale: the wheel physically cannot go
+   * deeper, rather than the deeper view being drawn and then hidden.
+   */
+  setMinSpan(span) {
+    this.minDist = Math.max(0.00035, this.distForSpan(span));
+    if (this.dist < this.minDist) this.dist = this.minDist;
+    if (this._dist < this.minDist) this._dist = this.minDist;
+  }
+
   /* ---------------- transitions ---------------- */
 
   /**
