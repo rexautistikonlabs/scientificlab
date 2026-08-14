@@ -151,7 +151,7 @@ Dataset and parameter-set values may be keyed by ID, by alias, or by region code
 | Tools | — | distance/tension/signal probes, annotations |
 | Data | — | research overlays, parameter sets, saved projects, JSON export |
 | Physiology | heart rate, respiratory rate, pause | plus tone, motility, breath depth, time rate |
-| Telemetry | full instrument strip | full instrument strip |
+| Telemetry | network load, global tension, signal integrity, fidelity, afferent rate, breath excursion, fluid transport | plus L/R comparison, bandwidth, added latency, live viscoelastic parameters, per-receptor fidelity and latency, dataset values, afferent trace |
 
 The gate is capability-based — features ask `can('scale.deep')`, never `if (tier === 'premium')` —
 and enforced at the source of each capability, not in the interface. The scale manager clamps the
@@ -160,6 +160,13 @@ keyboard or by calling `goToTier` directly. `effectiveOpacity` returns zero for 
 which is the one function both the renderer and the raycaster go through, so a premium layer cannot
 be revealed by scripting the store. The tools refuse scripted calls exactly as they refuse clicks.
 Deleting the entire locked-state UI would not open a single gate.
+
+The telemetry split is deliberate: the basic strip stays free because seeing the body actually
+alive and globally responsive is what makes the locked instrument worth buying, and it reads from
+the same solve either way. What is gated is the deep read-out — per-receptor bandwidth and latency,
+the live viscoelastic parameters, cross-midline comparison, dataset values and the afferent trace.
+Locked meters keep their label and their explanatory note rather than disappearing, so a user can
+see what the instrument would tell them and click straight through to the plan.
 
 Licensing is mocked for the prototype: a key in `localStorage`, any `PRO-XXXX` or `DEMO`. The
 resolver is one module returning the shape a real entitlement service returns, so swapping it for a

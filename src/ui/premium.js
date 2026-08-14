@@ -19,7 +19,10 @@ const FREE_POINTS = [
   ['Whole-body and region scale', 'Orbit, zoom to the region tier, and the living physiology running throughout.'],
   ['Major systems', 'Bones, major muscle groups, organs and the skin envelope.'],
   ['Single selection', 'Click any visible structure for its anatomy, tissue properties and sensory population.'],
-  ['Live telemetry', 'The full instrument strip, reading the same solve the premium tier uses.'],
+  [
+    'Basic live telemetry',
+    'Network load, global tension, signal integrity and fidelity, breath excursion and fluid transport — read from the same solve the Professional tier uses.',
+  ],
 ];
 
 const PRO_POINTS = [
@@ -28,6 +31,10 @@ const PRO_POINTS = [
   ['Unlimited multi-select', 'Any combination across any systems, with isolate, hide and per-layer opacity.'],
   ['Mechanical intervention', 'Tension, compression, restriction and shear, with global force redistribution.'],
   ['Tension mapping and signal streams', 'Colour by live tension, travelling action potentials, tension-network overlay.'],
+  [
+    'Advanced telemetry',
+    'Per-receptor bandwidth and latency, live viscoelastic parameters, left/right comparison and the afferent trace.',
+  ],
   ['Measurement and annotation', 'Distance, tension and signal probes; notes pinned to anatomical IDs.'],
   ['Research overlays', 'Any ID-keyed dataset painted onto the model, with provenance.'],
   ['Projects and export', 'Save, reload and export scenes; the same IDs form the API surface.'],

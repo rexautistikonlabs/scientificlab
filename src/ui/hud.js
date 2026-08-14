@@ -11,7 +11,17 @@
 import { el, make, clamp, lerp, formatLength } from '../core/util.js';
 import { SCALES } from '../core/store.js';
 import { RECEPTORS } from '../anatomy/info.js';
+import { entitlements, CAPABILITIES } from '../platform/entitlements.js';
 
+/**
+ * The instrument strip.
+ *
+ * `cap` marks a meter as part of the advanced read-out. Meters without one form
+ * the basic strip every tier sees: overall network load, global tension, simple
+ * fidelity, and the living-body rhythms. Gated meters keep their label and their
+ * note — the point of showing a locked instrument is that the user can see what
+ * it would tell them.
+ */
 const METERS = [
   {
     id: 'load',
@@ -38,6 +48,8 @@ const METERS = [
     note: 'tension imbalance across the midline',
     color: '#a58cff',
     hi: true,
+    // a cross-midline comparison read-out
+    cap: 'telemetry.advanced',
   },
   {
     id: 'integrity',
@@ -63,6 +75,7 @@ const METERS = [
     color: '#ff8f6a',
     hi: true,
     max: 90,
+    cap: 'telemetry.advanced',
   },
   {
     id: 'bandwidth',
@@ -71,6 +84,7 @@ const METERS = [
     note: 'high-frequency content still arriving',
     color: '#79e6cf',
     hi: false,
+    cap: 'telemetry.advanced',
   },
   {
     id: 'firing',
@@ -144,11 +158,61 @@ export class Hud {
       host.appendChild(node);
       this.meters.set(m.id, {
         def: m,
+        node,
         val: node.querySelector('.mt-val'),
         fill: node.querySelector('.mt-fill'),
         note: node.querySelector('.mt-note'),
         last: -1,
+        locked: false,
       });
+    }
+    this.syncEntitlements();
+  }
+
+  /**
+   * Re-read the licence and lock the advanced meters and the afferent trace.
+   * A locked meter shows its label, its note and a lock rather than a value, and
+   * clicking it opens the plan.
+   */
+  syncEntitlements() {
+    const advanced = entitlements.can('telemetry.advanced');
+    for (const [, m] of this.meters) {
+      const locked = !!m.def.cap && !entitlements.can(m.def.cap);
+      m.locked = locked;
+      m.node.classList.toggle('locked', locked);
+      if (locked) {
+        m.val.innerHTML = `<i class="ic-lock"></i>`;
+        m.fill.style.width = '0%';
+        m.last = -1;
+        m.node.title = `${m.def.label} — Professional. ${CAPABILITIES[m.def.cap]?.blurb || ''}`;
+        if (!m.node._upsell) {
+          m.node._upsell = true;
+          m.node.style.cursor = 'pointer';
+          m.node.addEventListener('click', () => this.onLockedClick?.(m.def.cap, m.def.label));
+        }
+      } else {
+        m.node.title = `${m.def.label} — ${m.def.note}`;
+        m.node.style.cursor = '';
+      }
+    }
+
+    // the afferent trace is a per-receptor read-out
+    const trace = el('#tm-trace');
+    if (trace) {
+      trace.classList.toggle('locked', !advanced);
+      let veil = trace.querySelector('.trace-veil');
+      if (!advanced && !veil) {
+        veil = make(
+          'div',
+          'trace-veil',
+          `<b><i class="ic-lock"></i>Afferent trace</b><span>Watch the true mechanical event and what the ending
+           actually receives, side by side, for any receptor class.</span>`
+        );
+        veil.addEventListener('click', () => this.onLockedClick?.('telemetry.advanced', 'Afferent trace'));
+        trace.appendChild(veil);
+      } else if (advanced && veil) {
+        veil.remove();
+      }
     }
   }
 
@@ -180,7 +244,7 @@ export class Hud {
 
   setMeter(id, value, display, note) {
     const m = this.meters.get(id);
-    if (!m) return;
+    if (!m || m.locked) return;
     const max = m.def.max ?? 100;
     const pct = clamp((value / max) * 100, 0, 100);
     if (Math.abs(pct - m.last) > 0.4) {
@@ -263,7 +327,8 @@ export class Hud {
 
   _drawTrace() {
     const c = this.ctx;
-    if (!c) return;
+    // per-receptor read-out; nothing to draw when the licence does not cover it
+    if (!c || !entitlements.can('telemetry.advanced')) return;
     const W = this.canvas.width;
     const H = this.canvas.height;
     const dpr = this.dpr || 1;

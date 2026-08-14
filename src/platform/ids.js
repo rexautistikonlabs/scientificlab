@@ -49,8 +49,10 @@ export const ALIASES = Object.freeze({
   FASCIA_DEEP_CERVICAL: 'FASCIA_CERVICAL_DEEP',
   FASCIA_SUPERFICIAL_TRUNK: 'FASCIA_SUPERFICIAL_TRUNK',
   FASCIA_ABDOMINAL_APONEUROSIS: 'FASCIA_ABDOMINAL_APONEUROSIS',
-  // the diaphragm is a muscle in this model's layer scheme, but the wider
-  // literature treats it as an organ-level structure
+  /* Settled decision — do not invert. MUSCLE_DIAPHRAGM is canonical because the
+     diaphragm is a muscle in this model's layer scheme and its layer membership
+     must not change. The wider literature often treats it as an organ-level
+     structure, so ORGAN_DIAPHRAGM stays a permanent working alias. */
   ORGAN_DIAPHRAGM: 'MUSCLE_DIAPHRAGM',
   DIAPHRAGM: 'MUSCLE_DIAPHRAGM',
   // common short forms

@@ -51,6 +51,19 @@ export const CAPABILITIES = Object.freeze({
   },
   'layers.opacity': { name: 'Per-layer opacity', tiers: ['premium'] },
 
+  /* --- telemetry ---
+     The basic strip is deliberately free: seeing the body actually alive and
+     globally responsive is what makes the locked instrument worth buying. What
+     is gated is the deep read-out — per-receptor bandwidth and latency, the live
+     viscoelastic parameters, cross-structure comparison and dataset statistics. */
+  'telemetry.basic': { name: 'Live telemetry', tiers: ['free', 'premium'] },
+  'telemetry.advanced': {
+    name: 'Advanced telemetry',
+    tiers: ['premium'],
+    blurb:
+      'Per-receptor bandwidth and latency, live viscoelastic parameters, left/right comparison and the afferent trace.',
+  },
+
   /* --- visualisation --- */
   'viz.forceColor': { name: 'Tension mapping', tiers: ['premium'], blurb: 'Colour every tissue by its live tension deviation from rest.' },
   'viz.signals': { name: 'Afferent signal streams', tiers: ['premium'] },

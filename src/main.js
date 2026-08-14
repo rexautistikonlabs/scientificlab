@@ -175,6 +175,12 @@ async function main() {
   const hud = new Hud(store, scales, afferent, physio, solver);
   const actions = {};
   const premium = new PremiumUI({ hud, onTierChange: () => applyTier() });
+  // a click on a locked meter or the locked trace opens the plan, naming the
+  // capability the user reached for
+  hud.onLockedClick = (cap, label) => {
+    entitlements.require(cap, { meter: label });
+    premium.open(`${label} is part of the advanced instrument.`);
+  };
   const panels = new Panels({ store, registry, afferent, solver, actions, props, premium });
 
   const projects = new Projects({
@@ -206,6 +212,7 @@ async function main() {
     premium.syncTier();
     premium.decorateSections();
     premium.decorateScaleRail(hud.railButtons);
+    hud.syncEntitlements();
     panels.syncLayers();
     panels.syncReceptors();
     panels.syncChainChips();

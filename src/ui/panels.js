@@ -512,14 +512,24 @@ export class Panels {
     const recs = this.afferent.describeFor(info.receptors || []);
     this._liveNodes = s.nodes;
 
-    const extra = (bag?.fields || [])
-      .map(
-        (f) =>
-          `<dt>${f.label}</dt><dd>${typeof f.value === 'number' ? f.value.toLocaleString() : f.value}${
-            f.unit ? ` <small style="color:var(--ink-3)">${f.unit}</small>` : ''
-          }<span class="prov">${f.source}</span></dd>`
-      )
-      .join('');
+    /* The deep read-out is licensed separately from the anatomy. Static tissue
+       descriptors stay open — they are the educational payload — while the live
+       viscoelastic parameters, per-class bandwidth and latency, and bound dataset
+       values belong to the advanced instrument. */
+    const deep = entitlements.can('telemetry.advanced');
+    const lockRow = (label) =>
+      `<dt>${label}</dt><dd class="dd-locked" data-cap="telemetry.advanced"><i class="ic-lock"></i></dd>`;
+
+    const extra = deep
+      ? (bag?.fields || [])
+          .map(
+            (f) =>
+              `<dt>${f.label}</dt><dd>${typeof f.value === 'number' ? f.value.toLocaleString() : f.value}${
+                f.unit ? ` <small style="color:var(--ink-3)">${f.unit}</small>` : ''
+              }<span class="prov">${f.source}</span></dd>`
+          )
+          .join('')
+      : (bag?.fields || []).map((f) => lockRow(f.label)).join('');
 
     host.innerHTML = `
       <div class="insp-head">
@@ -536,11 +546,17 @@ export class Panels {
       <dl class="kv">
         <dt>Tension vs. rest</dt><dd id="live-load">—</dd>
         <div class="bar"><i id="live-load-bar"></i></div>
-        <dt>Strain rate</dt><dd id="live-rate">—</dd>
+        ${
+          deep
+            ? `<dt>Strain rate</dt><dd id="live-rate">—</dd>
         <dt>Displacement</dt><dd id="live-disp">—</dd>
         <dt>Local stiffening</dt><dd id="live-stiff">—</dd>
         <dt>Local viscosity</dt><dd id="live-visc">—</dd>
-        <dt>Interstitial pressure</dt><dd id="live-press">—</dd>
+        <dt>Interstitial pressure</dt><dd id="live-press">—</dd>`
+            : `${lockRow('Strain rate')}${lockRow('Displacement')}${lockRow('Local stiffening')}${lockRow(
+                'Local viscosity'
+              )}${lockRow('Interstitial pressure')}`
+        }
       </dl>
 
       <div class="insp-sub">Tissue properties</div>
@@ -582,6 +598,13 @@ export class Panels {
       );
     });
 
+    // any locked read-out row opens the plan, so the value is discoverable
+    for (const dd of host.querySelectorAll('.dd-locked')) {
+      const cap = dd.dataset.cap;
+      dd.title = `${CAPABILITIES[cap]?.name || 'Professional'} — ${CAPABILITIES[cap]?.blurb || ''}`;
+      dd.addEventListener('click', () => this.premium?.open(`${CAPABILITIES[cap]?.name} is a Professional feature.`));
+    }
+
     const rh = el('#insp-recs', host);
     if (!recs.length) {
       rh.innerHTML = `<p class="pnote">No discrete endings modelled in this structure.</p>`;
@@ -595,8 +618,13 @@ export class Panels {
           <div class="bar"><i class="rr-bar" style="background:${r.color}"></i></div>
           <dt style="font-size:9.5px;opacity:.8">${r.adapt}</dt>
           <dd style="font-size:9.5px;opacity:.8">${r.band} · ${r.fiber} (${r.group})</dd>
-          <dt style="font-size:9.5px;opacity:.8">fidelity / latency</dt>
-          <dd style="font-size:9.5px" class="rr-fid">—</dd>`;
+          ${
+            deep
+              ? `<dt style="font-size:9.5px;opacity:.8">fidelity / latency</dt>
+          <dd style="font-size:9.5px" class="rr-fid">—</dd>`
+              : `<dt style="font-size:9.5px;opacity:.8">fidelity / latency</dt>
+          <dd class="dd-locked" data-cap="telemetry.advanced"><i class="ic-lock"></i></dd>`
+          }`;
         row.title = `${r.name} — ${r.detects}\nConduction ${r.cv} → ${r.target}`;
         rh.appendChild(row);
         this._recRows.push({ id: r.id, rate: row.querySelector('.rr-rate'), bar: row.querySelector('.rr-bar'), fid: row.querySelector('.rr-fid') });
@@ -659,8 +687,11 @@ export class Panels {
         if (!p) continue;
         r.rate.textContent = p.rate.toFixed(0);
         r.bar.style.width = `${clamp(p.rateNorm, 0, 1) * 100}%`;
-        r.fid.textContent = `${(p.fidelity * 100).toFixed(0)} % · ${p.latency.toFixed(0)} ms`;
-        r.fid.style.color = p.fidelity < 0.6 ? '#ff6f52' : p.fidelity < 0.82 ? '#f0b429' : '#4fe0a0';
+        // absent when the advanced read-out is not licensed
+        if (r.fid) {
+          r.fid.textContent = `${(p.fidelity * 100).toFixed(0)} % · ${p.latency.toFixed(0)} ms`;
+          r.fid.style.color = p.fidelity < 0.6 ? '#ff6f52' : p.fidelity < 0.82 ? '#f0b429' : '#4fe0a0';
+        }
       }
     }
 
