@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>CONTINUUM — Living Biotensegrity &amp; Afferent Flow</title>
+    <meta
+      name="description"
+      content="A multi-scale interactive simulation of the body as one continuous tension network: living physiology, mechanotransduction, and afferent signal integrity from whole body down to single mechanoreceptors."
+    />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%234fd6e0' stroke-width='2'/%3E%3Cpath d='M16 3 L27 22 L5 22 Z' fill='none' stroke='%23f0b429' stroke-width='1.6'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="stage" aria-label="Three-dimensional biotensegrity simulation viewport"></canvas>
+
+      <!-- Boot / loading -->
+      <div id="boot" class="boot">
+        <div class="boot-inner">
+          <div class="boot-mark">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle cx="60" cy="60" r="46" class="bm-ring" />
+              <path d="M60 16 L98 82 L22 82 Z" class="bm-tri" />
+              <path d="M60 104 L22 38 L98 38 Z" class="bm-tri bm-tri-2" />
+              <circle cx="60" cy="60" r="5" class="bm-core" />
+            </svg>
+          </div>
+          <h1 class="boot-title">CONTINUUM</h1>
+          <p class="boot-sub">Living Biotensegrity &amp; Afferent Flow</p>
+          <div class="boot-bar"><i id="boot-fill"></i></div>
+          <p class="boot-stage" id="boot-stage">initialising</p>
+        </div>
+      </div>
+
+      <!-- Top bar -->
+      <header id="topbar" class="topbar" hidden>
+        <div class="tb-brand">
+          <span class="tb-logo" aria-hidden="true"></span>
+          <span class="tb-name">CONTINUUM</span>
+          <span class="tb-ver">1.0</span>
+        </div>
+        <nav class="tb-scales" id="scale-rail" aria-label="Scale navigation"></nav>
+        <div class="tb-right">
+          <button class="tb-btn" id="btn-play" title="Pause / resume physiology (Space)">
+            <span class="ic-pause"></span><span class="tb-btn-lbl">Running</span>
+          </button>
+          <button class="tb-btn" id="btn-help" title="Reference &amp; shortcuts (?)">?</button>
+          <div class="tb-perf" id="perf" title="Renderer performance">
+            <span id="perf-fps">—</span><small>fps</small>
+          </div>
+        </div>
+      </header>
+
+      <!-- Left: systems + scales -->
+      <aside id="panel-left" class="panel panel-left" hidden>
+        <div class="panel-scroll">
+          <section class="pgroup">
+            <h2 class="pgroup-h">
+              Systems
+              <span class="pgroup-tools">
+                <button class="mini" id="btn-all-on" title="Show every system">all</button>
+                <button class="mini" id="btn-solo-clear" title="Clear isolation">reset</button>
+              </span>
+            </h2>
+            <div id="layer-list" class="layer-list"></div>
+          </section>
+
+          <section class="pgroup">
+            <h2 class="pgroup-h">Myofascial continuities</h2>
+            <p class="pnote">Continuous tension paths. Loading any one of them redistributes force along its whole length.</p>
+            <div id="chain-list" class="chip-grid"></div>
+          </section>
+
+          <section class="pgroup">
+            <h2 class="pgroup-h">Receptor classes</h2>
+            <div id="receptor-list" class="chip-grid"></div>
+          </section>
+        </div>
+      </aside>
+
+      <!-- Right: inspector + controls -->
+      <aside id="panel-right" class="panel panel-right" hidden>
+        <div class="panel-scroll">
+          <section class="pgroup" id="inspector">
+            <h2 class="pgroup-h">Inspector</h2>
+            <div id="insp-body" class="insp-empty">
+              <p>Click any structure to inspect its mechanical state, its sensory population, and the afferent pathway it feeds.</p>
+              <p class="pnote">Shift-click to add to selection. Double-click to fly to it.</p>
+            </div>
+          </section>
+
+          <section class="pgroup">
+            <h2 class="pgroup-h">Mechanical intervention</h2>
+            <div class="ctrl-rows" id="mech-controls"></div>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="btn-apply">Apply to selection</button>
+              <button class="btn" id="btn-release">Release all</button>
+            </div>
+            <div id="restriction-list" class="rest-list"></div>
+          </section>
+
+          <section class="pgroup">
+            <h2 class="pgroup-h">Physiology</h2>
+            <div class="ctrl-rows" id="physio-controls"></div>
+          </section>
+
+          <section class="pgroup">
+            <h2 class="pgroup-h">Render</h2>
+            <div class="ctrl-rows" id="render-controls"></div>
+          </section>
+        </div>
+      </aside>
+
+      <!-- Bottom: live telemetry -->
+      <section id="telemetry" class="telemetry" hidden>
+        <div class="tm-meters" id="tm-meters"></div>
+        <div class="tm-traces">
+          <div class="tm-trace">
+            <header><span>Afferent trace</span><em id="trace-label">— resting baseline</em></header>
+            <canvas id="trace-canvas" height="76"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scale readout -->
+      <div id="scalebar" class="scalebar" hidden>
+        <div class="sb-line"><i></i></div>
+        <span id="sb-text">1 m</span>
+      </div>
+
+      <!-- Hover tooltip -->
+      <div id="tooltip" class="tooltip" hidden></div>
+
+      <!-- Toast -->
+      <div id="toasts" class="toasts"></div>
+
+      <!-- Help -->
+      <div id="help" class="overlay" hidden>
+        <div class="overlay-card">
+          <button class="overlay-x" id="help-x" aria-label="Close">×</button>
+          <h2>CONTINUUM</h2>
+          <p class="ov-lead">
+            An interactive model of the body as a single continuous tension network. Every structure is
+            selectable, every scale is reachable, and the living rhythms never stop — so you can watch how
+            a change in mechanical state anywhere alters the afferent information arriving centrally.
+          </p>
+          <div class="ov-cols">
+            <div>
+              <h3>Navigation</h3>
+              <ul class="ov-list">
+                <li><kbd>drag</kbd> orbit</li>
+                <li><kbd>wheel</kbd> zoom / traverse scale</li>
+                <li><kbd>right-drag</kbd> pan</li>
+                <li><kbd>1</kbd>–<kbd>5</kbd> jump to scale tier</li>
+                <li><kbd>dbl-click</kbd> fly to structure</li>
+                <li><kbd>F</kbd> frame selection · <kbd>R</kbd> reset view</li>
+              </ul>
+              <h3>Selection</h3>
+              <ul class="ov-list">
+                <li><kbd>click</kbd> select · <kbd>shift</kbd>+click add</li>
+                <li><kbd>I</kbd> isolate selection · <kbd>Esc</kbd> clear</li>
+                <li><kbd>X</kbd> hide selection</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Intervention</h3>
+              <ul class="ov-list">
+                <li><kbd>T</kbd> apply current intervention</li>
+                <li><kbd>Shift</kbd>+<kbd>T</kbd> release all</li>
+                <li><kbd>Space</kbd> pause / resume physiology</li>
+              </ul>
+              <h3>Reading the meters</h3>
+              <ul class="ov-list">
+                <li><b>Network load</b> — RMS tension across every element. 100&nbsp;% is the body's own resting pre-tension, measured at start-up.</li>
+                <li><b>Peak rise</b> — the largest local increase above rest anywhere in the network.</li>
+                <li><b>Fidelity</b> — the fraction of the achievable signal that survives the tissue between the event and the ending.</li>
+                <li><b>Added latency</b> — delay beyond what healthy tissue and normal conduction already cost.</li>
+                <li><b>Bandwidth</b> — how much of the frequency range a class is built to resolve still reaches it.</li>
+              </ul>
+            </div>
+          </div>
+          <h3 style="margin-top:18px">What changes as you descend</h3>
+          <ul class="ov-list ov-wide">
+            <li>
+              <b>Layers peel.</b> Skin and superficial fascia fade out by the organ tier, and bone and muscle
+              thin down, so the structure you are approaching is not hidden behind the ones you have passed.
+              Your layer switches are untouched — only how strongly a visible layer is drawn.
+            </li>
+            <li>
+              <b>The view sections.</b> From the organ tier inward the near plane advances toward the look-at
+              point, cutting away whatever lies between the camera and the subject.
+            </li>
+            <li>
+              <b>Receptor markers reach true size.</b> Above the tissue tier the endings are drawn as legible
+              markers — a 150&nbsp;µm Meissner corpuscle is a fraction of a pixel at whole-body view. Below it they
+              converge on their real dimensions, and the scale readout says so.
+            </li>
+          </ul>
+          <p class="ov-fine">
+            A visualisation and teaching instrument for mechanical and sensory physiology. Structures are
+            generated procedurally to published adult proportions, and the mechanics, viscoelastic filtering
+            and rate coding model published principles qualitatively rather than reproducing any measured
+            dataset. It is not a diagnostic, clinical or treatment tool, and it does not describe any
+            individual body.
+          </p>
+        </div>
+      </div>
+
+      <noscript>
+        <div class="noscript">CONTINUUM requires JavaScript and a WebGL2-capable browser.</div>
+      </noscript>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
