@@ -3012,3 +3012,157 @@ input[type='email']:focus {
   color: var(--ink-3);
   font-style: italic;
 }
+
+/* Models-and-grounding block on the gate. Quieter than the "not a" list above
+   it — that list is about what the product must never be used for, this is
+   about how much to trust its numbers, and conflating the two helps neither. */
+.disclaimer-grounding {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--line-2);
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 255, 255, 0.022);
+  font-size: 11.6px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.disclaimer-grounding b {
+  color: var(--ink-1);
+  font-weight: 600;
+}
+.disclaimer-grounding i {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--cyan-dim);
+}
+.disclaimer-grounding a {
+  color: var(--cyan-dim);
+  text-decoration: underline;
+}
+
+/* ============================================================
+   Help: the practical manual
+   ============================================================ */
+
+.help-card {
+  width: min(840px, 100%);
+}
+.help-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 14px 0 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.018);
+}
+.help-toc a {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  text-decoration: none;
+}
+.help-toc a:hover {
+  color: var(--cyan);
+  background: rgba(79, 214, 224, 0.08);
+}
+.help-sec {
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 12px;
+}
+.help-sec h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ink-1);
+  letter-spacing: 0.01em;
+}
+.help-sec p {
+  margin: 0 0 9px;
+  font-size: 12.2px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.help-sec b {
+  color: var(--ink-1);
+}
+.help-sec code {
+  padding: 0 3px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--cyan-dim);
+  background: rgba(79, 214, 224, 0.08);
+}
+.ov-steps {
+  margin: 0 0 9px;
+  padding-left: 18px;
+}
+.ov-steps li {
+  margin-bottom: 5px;
+  font-size: 12.2px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.help-nots li {
+  color: var(--ink-2);
+}
+
+/* The caveats are the reason this panel exists as much as the instructions are,
+   so they sit inside the section they belong to rather than in a footer nobody
+   reaches. Amber rule, quiet fill: present, not shouting. */
+.help-caveat {
+  margin: 0 0 9px !important;
+  padding: 8px 11px;
+  border-left: 2px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  background: rgba(240, 180, 41, 0.05);
+  font-size: 11.6px !important;
+}
+.help-headline {
+  padding: 8px 11px;
+  border-left: 2px solid var(--cyan);
+  border-radius: 0 6px 6px 0;
+  background: rgba(79, 214, 224, 0.06);
+}
+.help-pre {
+  margin: 0 0 9px;
+  padding: 9px 11px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.help-layers li {
+  margin-bottom: 7px;
+  line-height: 1.55;
+}
+.ov-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+  .help-card {
+    padding: 20px 16px 18px;
+  }
+  .help-toc {
+    gap: 2px;
+  }
+  .help-sec p,
+  .ov-steps li {
+    font-size: 12.6px;
+  }
+  .help-card .ov-cols {
+    grid-template-columns: 1fr;
+  }
+}

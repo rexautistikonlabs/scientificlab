@@ -72,6 +72,9 @@ paper has been used. What is taken from it is the *idea* of three phenomena
 worth showing; the equations here were written for this product and any
 quantitative agreement would be a coincidence.
 
+In-app, all of this is summarised in Help (`?`) → *Microscope mode*, with the
+Extended caveats stated there rather than left to this file.
+
 How grounded each part of this is — module by module, with a validation target
 and a next action for each — is inventoried in `VALIDATION_MATRIX.md`. The Basic
 drive, the Extended drive and the spike/conduction stage are all `partial` there:

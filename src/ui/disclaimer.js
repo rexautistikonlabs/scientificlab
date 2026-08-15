@@ -34,8 +34,13 @@ export const DISCLAIMER_KEY = 'continuum_disclaimer_v1';
  * Bump this whenever the disclaimer text changes in substance, so everyone
  * re-acknowledges. A stored record whose version does not match is treated as
  * no record at all.
+ *
+ * v2 — added the models-and-grounding paragraph (that module status varies, that
+ * nothing is validated against measured human data, and where the inventory
+ * lives) and strengthened the acknowledgment sentence. Both change what is being
+ * agreed to, so a v1 record no longer counts.
  */
-export const DISCLAIMER_VERSION = '1';
+export const DISCLAIMER_VERSION = '2';
 
 /** Elements that get inert-ed while the gate is up, plus the canvas itself. */
 const SHIELDED = ['#stage', '#topbar', '#panel-left', '#panel-right', '#telemetry', '#scalebar', '#start'];

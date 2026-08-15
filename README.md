@@ -653,6 +653,25 @@ spotlit coach marks anchored to the real interface rather than a separate screen
 stays draggable throughout. `?tour=1` forces it (without skipping the disclaimer), and
 `CONTINUUM.tour.reset()` clears the record. Full step list and test steps in `TOUR.md`.
 
+The gate carries a short **models-and-grounding** paragraph as of v2: that module
+status varies from grounded to speculative, that nothing here is validated
+against measured human data, and where to find the inventory. Changing the gate
+text in substance means bumping `DISCLAIMER_VERSION` so everyone re-acknowledges
+— v1 records no longer count.
+
+`npm run check` runs two static guards: `check:disclaimer` fails if the gate is
+deleted, unwired, given a close control, stripped of its `inert` shielding, or
+made bypassable by `?skip`; `check:validation` fails if the validation matrix
+and its code drift apart. The first exists because the gate went missing once —
+from a working copy taken before the gate commit landed, with nothing anywhere
+saying "this build has no gate".
+
+**Help (`?`)** is the practical manual: twelve sections covering the first-run
+path, navigation, systems, intervention, the Level C meters, Microscope Basic vs
+Extended, computational experiments, the A/B/C layers, the validation matrix and
+citations. Each honesty point sits in the section it belongs to rather than in a
+footer.
+
 To test the gate:
 
 ```

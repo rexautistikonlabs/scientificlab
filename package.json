@@ -12,7 +12,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4180",
-    "check:validation": "node tools/check-validation-matrix.mjs"
+    "check:validation": "node tools/check-validation-matrix.mjs",
+    "check:disclaimer": "node tools/check-disclaimer.mjs",
+    "check": "npm run check:disclaimer && npm run check:validation"
   },
   "dependencies": {
     "three": "^0.185.1"

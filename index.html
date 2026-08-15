@@ -349,11 +349,28 @@
               for visibility; numeric readouts are model outputs, not lab recordings.
             </p>
             <p class="disclaimer-hard">Do not use CONTINUUM to make clinical decisions.</p>
+
+            <!-- Models and grounding. Short on purpose: the gate is not the place
+                 for the full inventory, only for the fact that one exists and
+                 that nothing in it is validated. -->
+            <div class="disclaimer-grounding">
+              <b>Not all of this model is equally well grounded.</b> Different modules range from
+              <i>grounded</i> through <i>partial</i> and <i>novel</i> to <i>speculative</i>, and the full
+              inventory is in Help → Validation matrix. <b>Nothing in this product is validated against
+              measured human data.</b> The receptor models are simplified; Extended mode is inspired by
+              published phenomena — Blum et&nbsp;al. 2020,
+              <a href="https://doi.org/10.7554/eLife.55177" target="_blank" rel="noopener noreferrer">doi:10.7554/eLife.55177</a>
+              — and is not a reproduction of that work.
+            </div>
           </div>
 
           <label class="disclaimer-ack" for="disclaimer-check">
             <input type="checkbox" id="disclaimer-check" />
-            <span>I understand this is a simulation only and not for diagnostic or medical use.</span>
+            <span>
+              I understand CONTINUUM is a <b>simulation for research and education only</b> — not a medical
+              device, not a diagnostic tool, and not for clinical or medical use — and that its numbers are
+              model outputs rather than measurements of any person.
+            </span>
           </label>
 
           <button class="btn btn-primary disclaimer-go" id="disclaimer-accept" disabled aria-disabled="true">
@@ -372,176 +389,251 @@
       <div id="coach" class="coach-host" hidden></div>
 
       <!-- Help -->
+      <!-- Help: the practical manual. Twelve sections, scannable, each one
+           answering "how do I" before "what is". The honesty points are not
+           quarantined into a footer — they sit in the section they belong to,
+           because that is where somebody is when the question arises. -->
       <div id="help" class="overlay" hidden>
-        <div class="overlay-card">
+        <div class="overlay-card help-card">
           <button class="overlay-x" id="help-x" aria-label="Close">×</button>
-          <h2>CONTINUUM</h2>
+          <h2>CONTINUUM — how to use it</h2>
           <p class="ov-lead">
             An interactive model of the body as a single continuous tension network. Every structure is
-            selectable, every scale is reachable, and the living rhythms never stop — so you can watch how
-            a change in mechanical state anywhere alters the afferent information arriving centrally.
+            selectable, every scale is reachable, and the living rhythms never stop — so you can watch how a
+            mechanical change anywhere alters the afferent information arriving centrally.
           </p>
-          <div class="ov-cols">
-            <div>
-              <h3>Navigation</h3>
-              <ul class="ov-list">
-                <li><kbd>drag</kbd> orbit</li>
-                <li><kbd>wheel</kbd> zoom / traverse scale</li>
-                <li><kbd>right-drag</kbd> pan</li>
-                <li><kbd>1</kbd>–<kbd>5</kbd> jump to scale tier</li>
-                <li><kbd>dbl-click</kbd> fly to structure</li>
-                <li><kbd>F</kbd> frame selection · <kbd>R</kbd> reset view</li>
-              </ul>
-              <h3>Selection</h3>
-              <ul class="ov-list">
-                <li><kbd>click</kbd> select · <kbd>shift</kbd>+click add</li>
-                <li><kbd>I</kbd> isolate selection · <kbd>Esc</kbd> clear</li>
-                <li><kbd>X</kbd> hide selection</li>
-              </ul>
+
+          <nav class="help-toc" aria-label="Help contents">
+            <a href="#h-what">What it is</a><a href="#h-first">First run</a><a href="#h-move">Move &amp; scale</a>
+            <a href="#h-systems">Systems</a><a href="#h-intervene">Intervention</a><a href="#h-meters">Meters</a>
+            <a href="#h-micro">Microscope</a><a href="#h-exp">Experiments</a><a href="#h-layers">Layers</a>
+            <a href="#h-validation">Validation</a><a href="#h-cite">Citations</a><a href="#h-keys">Keys</a>
+          </nav>
+
+          <section class="help-sec" id="h-what">
+            <h3>1 · What CONTINUUM is — and is not</h3>
+            <p>
+              It is a literature-informed <b>simulation for research and education</b>. You give it a mechanical
+              change; it shows you what a published-style model of the body and its receptors predicts.
+            </p>
+            <ul class="ov-list help-nots">
+              <li><b>Not</b> a medical device.</li>
+              <li><b>Not</b> a diagnostic tool.</li>
+              <li><b>Not</b> a substitute for professional medical advice, diagnosis, or treatment.</li>
+              <li>It does <b>not</b> provide patient-specific clinical measurements or histological truth.</li>
+            </ul>
+            <p>
+              Display motion is often exaggerated so it can be seen, and every number is a model output rather
+              than a lab recording. Do not use CONTINUUM to make clinical decisions. The mental model to hold:
+              <b>this is a wind tunnel, not a clinic.</b>
+            </p>
+          </section>
+
+          <section class="help-sec" id="h-first">
+            <h3>2 · The first-time path</h3>
+            <ol class="ov-steps">
+              <li><b>Disclaimer</b> — tick the box, press <i>I understand — enter CONTINUUM</i>. It cannot be skipped.</li>
+              <li><b>Start screen</b> — what each tier includes. Press <i>Start exploring</i>.</li>
+              <li><b>Guided tour</b> — ten short steps over the real interface. <kbd>Enter</kbd> advances, <kbd>Esc</kbd> leaves.</li>
+              <li><b>Explore.</b> Nothing else is mandatory.</li>
+            </ol>
+            <p>
+              To run the tour again: <b>Restart guided tour</b>, just below. To replay the whole first-run path
+              from scratch, in the browser console:
+            </p>
+            <pre class="help-pre">CONTINUUM.disclaimer.reset();
+CONTINUUM.tour.reset();
+location.reload();</pre>
+          </section>
+
+          <section class="help-sec" id="h-move">
+            <h3>3 · Moving and changing scale</h3>
+            <ul class="ov-list">
+              <li><b>Drag</b> to orbit · <b>right-drag</b> or two-finger drag to pan · <b>wheel</b> or pinch to move in and out.</li>
+              <li>The wheel does not merely zoom — it traverses five orders of magnitude.</li>
+              <li>Scale rail, top centre: <b>Body → Region → Organ → Tissue → Receptor</b>. Keys <kbd>1</kbd>–<kbd>5</kbd> jump between them.</li>
+              <li><kbd>Shift</kbd>+<kbd>M</kbd> pins Microscope mode once you are entitled to the deep scales.</li>
+              <li>Explorer covers Body and Region; the deeper three are Professional.</li>
+            </ul>
+          </section>
+
+          <section class="help-sec" id="h-systems">
+            <h3>4 · Systems and inspection</h3>
+            <ul class="ov-list">
+              <li>Left panel toggles each system: skin, fascia, myofascial lines, muscle, bone, organs, nerves, vessels, lymph, receptors.</li>
+              <li><b>S</b> on a row isolates that system; <i>reset</i> clears the isolation.</li>
+              <li><b>Click</b> a structure to inspect it — live mechanical state, sensory population, afferent pathway.</li>
+              <li><b>Shift-click</b> adds to the selection. <b>Double-click</b> flies to a structure.</li>
+              <li><kbd>I</kbd> isolate · <kbd>X</kbd> hide · <kbd>R</kbd> reset.</li>
+            </ul>
+          </section>
+
+          <section class="help-sec" id="h-intervene">
+            <h3>5 · Mechanical intervention</h3>
+            <p>Right panel. Five modes: <b>Tension, Compression, Restriction, Shear, Release</b>.</p>
+            <ol class="ov-steps">
+              <li>Select one or more structures.</li>
+              <li>Pick a mode, set magnitude and field radius.</li>
+              <li><i>Apply to selection</i>. <i>Release all</i> returns the network to its resting pre-tension.</li>
+            </ol>
+            <p class="help-caveat">
+              These change the model's mechanical field so you can explore how force redistributes. They are
+              <b>not a treatment simulator</b> and do not represent any clinical procedure or its outcome.
+            </p>
+          </section>
+
+          <section class="help-sec" id="h-meters">
+            <h3>6 · The live meters</h3>
+            <p>
+              The bottom strip is entirely <b>Layer C — composite summaries</b>. Every meter carries a
+              <span class="layer-tag layer-c">C</span> tag, and hovering it shows the actual formula.
+            </p>
+            <p class="help-caveat">
+              They are real arithmetic over real state, and they compress something multi-dimensional into one
+              bar. <b>They are not measurements.</b> Signal integrity, for instance, is a weighted product of
+              three modelled quantities whose exponents were chosen, not measured. Full definitions:
+              <code>METRICS.md</code>.
+            </p>
+          </section>
+
+          <section class="help-sec" id="h-micro">
+            <h3>7 · Microscope mode</h3>
+            <p>
+              Past the Tissue tier — or <kbd>Shift</kbd>+<kbd>M</kbd> — one muscle spindle takes over, driven by
+              the same solve that moves the whole body. The view is <b>schematic and model-driven</b>, not
+              microscopy.
+            </p>
+            <ul class="ov-list">
+              <li><b>Basic</b> (default) — firing from length and velocity. The drive this ROI was verified against.</li>
+              <li>
+                <b>Extended</b> (opt-in) — adds stretch history, a tension-and-yank-style drive, and schematic
+                static / dynamic γ drive. Simplified and educational, inspired by published phenomena; the
+                citation appears beside the read-out whenever it is running.
+              </li>
+              <li><b>Scenarios</b> — educational stretch shapes (ramp–hold–release, history pair, velocity series). Watch for saturation warnings before reading any result.</li>
+            </ul>
+            <p class="help-caveat">
+              Extended mode takes two <i>qualitative targets</i> from Blum et&nbsp;al. 2020 — history dependence
+              recovering over seconds, and a dynamic response that grows with stretch speed. It is
+              <b>not a reproduction of that work</b>, is not fitted to it, and no numeric agreement is claimed.
+              See <code>MICRO_MODE.md</code>.
+            </p>
+          </section>
+
+          <section class="help-sec" id="h-exp">
+            <h3>8 · Computational experiments</h3>
+            <p>One protocol run twice — once clean, once perturbed — with everything else held identical.</p>
+            <ol class="ov-steps">
+              <li>Right panel → <b>Computational experiment</b>.</li>
+              <li>Choose a protocol, a perturbation (restriction, tension, release) and a magnitude.</li>
+              <li><i>Run experiment</i>. The table reports baseline, perturbed and Δ, tagged by layer.</li>
+            </ol>
+            <p class="help-caveat">
+              Results are <b>in-silico predictions under modelling assumptions</b>. How a perturbation reaches
+              the receptor — less transmission, more lag — is this product's own assumption, carrying the
+              citation key <code>REX_MODELLING_ASSUMPTION</code> and no literature source.
+              <b>Not human data, and not evidence for or against any hypothesis.</b>
+            </p>
+            <p class="help-caveat">
+              If a run saturates, the panel says so. A Δ of zero from a saturated run means the rate ceiling
+              absorbed the effect — that is a <b>model limitation, not "no effect"</b>.
+            </p>
+          </section>
+
+          <section class="help-sec" id="h-layers">
+            <h3>9 · Model layers A / B / C</h3>
+            <p>Every number carries a tag saying what kind of claim it is.</p>
+            <ul class="ov-list help-layers">
+              <li>
+                <span class="layer-tag layer-a">A</span><b>Mechanical proxy</b> — length, strain, tension proxy,
+                yank, cross-bridge availability. From the solver, in stated units. Nothing here was measured in tissue.
+              </li>
+              <li>
+                <span class="layer-tag layer-b">B</span><b>Literature-style model</b> — firing rate, spike times,
+                adaptation, conduction delay, history ratios. The serious scientific surface, and still a model output.
+              </li>
+              <li>
+                <span class="layer-tag layer-c">C</span><b>Composite summary</b> — network load, signal integrity,
+                peak rise, asymmetry. Labelled summaries for the instrument strip, not primary outputs.
+              </li>
+            </ul>
+          </section>
+
+          <section class="help-sec" id="h-validation">
+            <h3>10 · Validation matrix</h3>
+            <p>
+              An inventory of how well grounded each part of this product actually is. Sixteen modules, each
+              classified <code>grounded</code>, <code>partial</code>, <code>novel</code>,
+              <code>speculative</code> or <code>out_of_scope_v1</code>, with what would have to be shown to move
+              it up and an honest next action.
+            </p>
+            <p class="help-headline"><b>Validated against measured human data: 0.</b> No module claims it, and the status enum has no value for it.</p>
+            <p>
+              Read it in <code>VALIDATION_MATRIX.md</code>, or from the console:
+            </p>
+            <pre class="help-pre">CONTINUUM.validation.summary()      // counts by status
+CONTINUUM.validation.needsSourcing() // the working to-do list</pre>
+            <p class="help-caveat">
+              The largest gap, stated plainly there: the whole-body afferent constants in
+              <code>anatomy/info.js</code> carry no provenance at all — no range, no species, no source — while
+              the later micro path has all three for every constant. The older, more visible module is the
+              weaker one.
+            </p>
+            <p class="help-caveat">
+              And the point that matters most: <b>in-sim results neither support nor falsify any human
+              hypothesis.</b> This model was built to express a set of mechanical ideas, so it cannot also be
+              their test. Support would need foundation measurement protocols and independent physiological
+              outcomes — neither of which is in this software.
+            </p>
+          </section>
+
+          <section class="help-sec" id="h-cite">
+            <h3>11 · Citations and credit</h3>
+            <ul class="ov-list">
+              <li><code>MICRO_MODE.md</code> — receptor equations, parameters, limits, implemented vs missing.</li>
+              <li><code>src/data/micro/literature_params.js</code> — every constant with range, unit, species and citation.</li>
+              <li><code>VALIDATION_MATRIX.md</code> — module-by-module grounding.</li>
+              <li><code>METRICS.md</code> — Level C definitions and formulas.</li>
+            </ul>
+            <p>
+              Extended mode is inspired by
+              <a href="https://doi.org/10.7554/eLife.55177" target="_blank" rel="noopener noreferrer">Blum KP
+              et&nbsp;al. (2020) <i>eLife</i> 9:e55177</a> for its qualitative targets only — not a reproduction,
+              not fitted to it.
+            </p>
+            <p class="help-caveat">
+              <b>Every parameter record currently carries <code>verified: false</code></b>, including the one
+              whose DOI is known. A human must check each against its primary source before any of it supports a
+              published claim.
+            </p>
+          </section>
+
+          <section class="help-sec" id="h-keys">
+            <h3>12 · Keyboard and tips</h3>
+            <div class="ov-cols">
+              <div>
+                <ul class="ov-list">
+                  <li><kbd>?</kbd> this panel · <kbd>Esc</kbd> close, clear selection, or leave the tour</li>
+                  <li><kbd>1</kbd>–<kbd>5</kbd> jump scale tiers</li>
+                  <li><kbd>Space</kbd> pause / resume the physiology</li>
+                  <li><kbd>Shift</kbd>+<kbd>M</kbd> pin Microscope mode</li>
+                </ul>
+              </div>
+              <div>
+                <ul class="ov-list">
+                  <li><kbd>I</kbd> isolate · <kbd>X</kbd> hide · <kbd>R</kbd> reset</li>
+                  <li><kbd>Shift</kbd>+<kbd>F</kbd> frame diagnostics — persists across reloads</li>
+                  <li><kbd>P</kbd> the plan and what Professional adds</li>
+                  <li>Tour: <kbd>Enter</kbd> next · <kbd>←</kbd> back · <kbd>Esc</kbd> skip</li>
+                </ul>
+              </div>
             </div>
-            <div>
-              <h3>Intervention</h3>
-              <ul class="ov-list">
-                <li><kbd>T</kbd> apply current intervention</li>
-                <li><kbd>Shift</kbd>+<kbd>T</kbd> release all</li>
-                <li><kbd>Space</kbd> pause / resume physiology</li>
-              </ul>
-              <h3>Reading the meters</h3>
-              <ul class="ov-list">
-                <li><b>Network load</b> — RMS tension across every element. 100&nbsp;% is the body's own resting pre-tension, measured at start-up.</li>
-                <li><b>Peak rise</b> — the largest local increase above rest anywhere in the network.</li>
-                <li><b>Fidelity</b> — the fraction of the achievable signal that survives the tissue between the event and the ending.</li>
-                <li><b>Added latency</b> — delay beyond what healthy tissue and normal conduction already cost.</li>
-                <li><b>Bandwidth</b> — how much of the frequency range a class is built to resolve still reaches it.</li>
-              </ul>
-              <h3>Tools &amp; data</h3>
-              <ul class="ov-list">
-                <li><kbd>D</kbd> distance measurement · <kbd>N</kbd> add a note</li>
-                <li><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> save the scene · <kbd>P</kbd> plan</li>
-                <li><kbd>Shift</kbd>+<kbd>F</kbd> frame diagnostics — persists across reloads</li>
-              </ul>
+            <div class="ov-actions">
+              <button class="btn btn-sm" id="btn-replay-intro">Restart guided tour</button>
+              <button class="btn btn-sm" id="btn-replay-start">Show the start screen again</button>
             </div>
-          </div>
+          </section>
 
-          <h3 style="margin-top:18px">Performance &amp; quality</h3>
-          <p class="ov-note">
-            The model is fragment-bound rather than geometry-bound: a dozen translucent layers overlap at
-            every pixel of the figure, while the simulation itself costs well under a millisecond a frame.
-            <b>Render ▸ Quality</b> therefore works mostly on how many pixels are shaded and how expensive
-            each one is. <b>Auto</b> measures the real frame time and holds 60&nbsp;fps by moving the render
-            scale first — the least visible lever — and only changing tier once that band is exhausted.
-          </p>
-          <div class="ov-table-wrap">
-            <table class="ov-table">
-              <thead>
-                <tr><th>Tier</th><th>Render scale</th><th>MSAA</th><th>Bloom</th><th>Translucency</th><th>Endings · beads</th><th>Suits</th></tr>
-              </thead>
-              <tbody>
-                <tr><td><b>Low</b></td><td>0.50–0.90×</td><td>off</td><td>off</td><td>rim-weighted, single-sided, no specular</td><td>500 · 540</td><td>integrated graphics, older laptops, software rendering</td></tr>
-                <tr><td><b>Medium</b></td><td>0.62–1.0×</td><td>2×</td><td>one level</td><td>full, double-sided</td><td>882 · 960</td><td>recent integrated graphics, mid-range laptops</td></tr>
-                <tr><td><b>High</b></td><td>0.85–1.5×</td><td>4×</td><td>two levels</td><td>full, double-sided</td><td>1 469 · 1 500</td><td>discrete GPUs, Apple silicon</td></tr>
-                <tr><td><b>Ultra</b></td><td>1.0–2.0×</td><td>4×</td><td>two levels</td><td>full, double-sided</td><td>1 469 · 1 920</td><td>modern discrete GPUs, high-DPI displays</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="ov-note">
-            Tension colouring, rim lighting, force propagation, the signal streams and the living physiology
-            are present at every tier — the tiers change how much is spent drawing them, never what is
-            modelled. No tier is gated by licence. Geometry tessellation is the one setting chosen at load time
-            from the detected hardware; the frame diagnostics report which was built, and a reload rebuilds it.
-          </p>
-          <p class="ov-note">
-            The quality choice and the diagnostics panel both persist across reloads, so a tier can be locked
-            and measured without Auto moving underneath the test. The panel's <code>log</code> button lists
-            every decision Auto made with the frame time that caused it, and <code>copy</code> puts a full
-            report — GPU, viewport, tier, frame time, draw calls, triangles, CPU solve time and the whole
-            decision log — on the clipboard. If the panel's GPU line reads <b>SOFTWARE RASTERISER</b>, the
-            machine is not using its GPU and the frame times mean nothing about real hardware.
-          </p>
-
-          <h3 style="margin-top:18px">Research overlays</h3>
-          <p class="ov-note">
-            An overlay is a flat map from anatomical ID to a number — that is the whole contract, which is why
-            an elastography export, a myotonometry session and a modelling result all arrive the same way.
-            Load one with <b>Research overlays ▸ load…</b>, or click a dataset that ships with the build. Keys
-            may be a canonical ID, an alias, or a region code such as <code>THORAX</code> or
-            <code>PLANTAR_L</code>, which fans out to every structure in that region. Values may carry their
-            dispersion and sample count, shown in the inspector as <code>62.5 ± 9.1 (n=12)</code>. Anything
-            that cannot be resolved is reported rather than dropped — an overlay silently covering 30 of 50
-            structures is worse than one that says so. The overlay paints through a single per-structure
-            uniform, so the living physiology and the tension mapping keep running underneath it.
-          </p>
-
-          <h3 style="margin-top:18px">Account, plan and your data</h3>
-          <p class="ov-note">
-            An account holds your subscription; signing in grants nothing on its own. Billing and sign-in are
-            <b>mocked in this build</b> — no payment is taken and nothing leaves this browser. The session, the
-            licence claim, your saved scenes and your render preferences are all stored locally on this
-            machine, and clearing site data removes them. Institutional and offline seats use a licence key
-            instead of an account; both paths end in the same entitlement claim, which is the only thing that
-            can change what is unlocked.
-          </p>
-
-          <p class="ov-actions">
-            <button class="btn btn-sm" id="btn-replay-intro">Restart guided tour</button>
-            <button class="btn btn-sm" id="btn-replay-start">Show the start screen again</button>
-          </p>
-
-          <h3 style="margin-top:18px">How the platform is put together</h3>
-          <ul class="ov-list ov-wide">
-            <li>
-              <b>A compact core engine.</b> One biotensegrity solve per frame publishes displacement and
-              tension into a small data texture that every tissue shader samples. That single solve drives
-              the deformation and colour of every system, the firing of every receptor population and every
-              number on the instrument strip.
-            </li>
-            <li>
-              <b>Everything else attaches by ID.</b> Each structure carries a permanent identifier —
-              <code>BONE_FEMUR_L</code>, <code>FASCIA_CERVICAL_DEEP</code>,
-              <code>RECEPTOR_PACINIAN_PLANTAR_L_01</code> — shown in the inspector and copyable. Properties,
-              live state, research datasets, parameter sets, notes, measurements and saved scenes all key off
-              it, and none of them touch geometry or materials. A dataset that speaks these IDs paints onto
-              the model without any code change, which is also what lets a scene saved today reload against a
-              future revision of the model.
-            </li>
-            <li>
-              <b>Two tiers.</b> Explorer covers macro anatomy at whole-body and region scale, with the basic
-              live instrument: network load, global tension, signal integrity and fidelity, breath excursion
-              and fluid transport. Professional adds every scale, every layer, unlimited multi-select,
-              mechanical intervention, tension mapping, signal streams, measurement, annotation, overlays,
-              parameter sets, saved projects — and the advanced read-out: per-receptor bandwidth and latency,
-              live viscoelastic parameters, left/right comparison and the afferent trace. The gate is
-              enforced in the engine, not in the interface.
-            </li>
-          </ul>
-          <h3 style="margin-top:18px">What changes as you descend</h3>
-          <ul class="ov-list ov-wide">
-            <li>
-              <b>Layers peel, then re-form.</b> Skin and superficial fascia fade out by the organ tier. Bone,
-              muscle and deep fascia thin hard as you approach it — they are what you need to see past — reach
-              their thinnest while you are travelling between the organ and tissue tiers, and then come partly
-              back below that, because once you are inside the tissue it is the subject again and an ending has
-              to be embedded in something to mean anything. Your layer switches are untouched throughout; this
-              only scales how strongly a visible layer is drawn.
-            </li>
-            <li>
-              <b>The view sections.</b> From the organ tier inward the near plane advances toward the look-at
-              point, and the tissue approaching it fades rather than being clipped, so the cut reads like a
-              section rather than like missing geometry. Tissue well past the focal depth fades too, which is
-              what stops the deep views becoming a wash of colour with nothing to read a silhouette against.
-            </li>
-            <li>
-              <b>Receptor markers reach true size.</b> Above the tissue tier the endings are drawn as legible
-              markers — a 150&nbsp;µm Meissner corpuscle is a fraction of a pixel at whole-body view. Below it they
-              converge on their real dimensions, and the scale readout says so.
-            </li>
-          </ul>
-          <p class="ov-fine">
-            A visualisation and teaching instrument for mechanical and sensory physiology. Structures are
-            generated procedurally to published adult proportions, and the mechanics, viscoelastic filtering
-            and rate coding model published principles qualitatively rather than reproducing any measured
-            dataset.
-          </p>
           <p class="ov-fine ov-fine-hard">
             CONTINUUM is a literature-informed <b>simulation</b> for research and education. It is
             <b>not a medical device</b>, <b>not a diagnostic tool</b>, and <b>not a substitute for professional
