@@ -32,6 +32,7 @@ import { PROTOCOLS as MICRO_PROTOCOLS, simulateProtocol, peaksPerRepetition, Ext
 import { P as P_MICRO, listParams, setParam, BLUM_2020 } from './data/micro/literature_params.js';
 import { runExperiment as runMicroExperiment, summarise as summariseExperiment, PERTURBATIONS, perturbationTerms } from './sim/experiment.js';
 import { LAYERS as MODEL_LAYERS, OUTPUTS as MODEL_OUTPUTS, layerOf, EXPERIMENT_CAPTION } from './platform/layers.js';
+import { VALIDATION_ROWS, STATUS as VALIDATION_STATUS, summary as validationSummary, row as validationRow, withStatus, needsSourcing } from './platform/validation.js';
 import { RECEPTORS } from './anatomy/info.js';
 import { IdRegistry } from './platform/ids.js';
 import { PropertyStore, registerReferenceData } from './platform/properties.js';
@@ -1347,6 +1348,18 @@ async function main() {
       experimentSummary: (specOrId, opts) =>
         summariseExperiment(runMicroExperiment(typeof specOrId === 'string' ? MICRO_PROTOCOLS[specOrId] : specOrId, opts)),
       caption: () => EXPERIMENT_CAPTION,
+    },
+
+    /* How well grounded each module actually is. The counts here and the table
+       in VALIDATION_MATRIX.md are checked against each other by
+       tools/check-validation-matrix.mjs, so neither can drift alone. */
+    validation: {
+      summary: () => validationSummary(),
+      rows: () => JSON.parse(JSON.stringify(VALIDATION_ROWS)),
+      row: (id) => JSON.parse(JSON.stringify(validationRow(id))),
+      status: () => JSON.parse(JSON.stringify(VALIDATION_STATUS)),
+      withStatus: (s) => JSON.parse(JSON.stringify(withStatus(s))),
+      needsSourcing: () => needsSourcing().map((r) => ({ id: r.id, module: r.module, status: r.status, next: r.next })),
     },
 
     /* Which layer any named output belongs to, and what it actually is. */

@@ -72,6 +72,11 @@ paper has been used. What is taken from it is the *idea* of three phenomena
 worth showing; the equations here were written for this product and any
 quantitative agreement would be a coincidence.
 
+How grounded each part of this is — module by module, with a validation target
+and a next action for each — is inventoried in `VALIDATION_MATRIX.md`. The Basic
+drive, the Extended drive and the spike/conduction stage are all `partial` there:
+the model *shapes* are citable, the parameters are not yet checked.
+
 The parameter citations in `src/data/micro/literature_params.js` **have not been
 verified against primary sources.** Every `citation` block carries
 `verified: false`, and `doi`/`pmid` are `null` rather than guessed. A human must

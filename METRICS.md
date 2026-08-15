@@ -46,6 +46,11 @@ This is the serious surface. It is still a model output, not a recording, and
 
 ---
 
+> Every metric family below is classified in `VALIDATION_MATRIX.md`. The Level C
+> composites are `speculative` there — real arithmetic over real state, with no
+> external anchor for the weightings. That is not a criticism of them; it is what
+> a composite is.
+
 ## Layer C — composite summaries
 
 Each of these is real arithmetic over real state. Each also compresses something

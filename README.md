@@ -537,6 +537,24 @@ Nothing else changes. The three provider buttons, the plan cards, the cancel-at-
 and the licence-key path are already wired to that shape. Offline and institutional seats keep the
 key path, which resolves to the same claim with `source: 'licence-key'`.
 
+## Validation matrix
+
+`VALIDATION_MATRIX.md` classifies every substantial module against its scientific
+anchor, a validation target, and an honest status — `grounded`, `partial`,
+`novel`, `speculative` or `out_of_scope_v1`. **No row is validated against
+measured data**, because this product holds no measured series, and the enum has
+no value that would let a row claim otherwise.
+
+Current inventory: 16 modules — 3 grounded, 6 partial, 3 novel, 2 speculative,
+2 out of scope for v1. `CONTINUUM.validation.summary()` returns the counts, and
+`node tools/check-validation-matrix.mjs` fails the build if the document and
+`src/platform/validation.js` stop agreeing.
+
+The matrix also carries a falsification note: in-sim experiments show a
+*predicted* Δ under the receptor model given an assumed mechanical change. They
+neither support nor falsify any human hypothesis, and a Δ of zero from a
+saturated run is a model limitation rather than a negative result.
+
 ## Model layers and claim discipline
 
 Every number carries a layer tag, and the layer says what kind of claim it is:
