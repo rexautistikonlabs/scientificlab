@@ -228,6 +228,23 @@ class Store extends Emitter {
     /** receptor class shown in micro-anatomy at the deepest tier */
     this.microFocus = 'pacinian';
 
+    /**
+     * Microscope mode — micro-mechanics on one region of interest.
+     *
+     * `active` is latched with hysteresis by the scale manager rather than being
+     * a plain threshold on the tier, because sitting exactly on a boundary while
+     * orbiting would otherwise flicker the entire mode on and off. `pinned` is the
+     * explicit override: once the user asks for the mode, camera distance stops
+     * deciding for them.
+     */
+    this.micro = {
+      active: false,
+      pinned: false,
+      roi: 'suboccipital',
+      /** damp gross body motion, so a millimetre-scale subject holds still */
+      steady: true,
+    };
+
     this.physio = {
       running: true,
       speed: 1,
@@ -384,6 +401,25 @@ class Store extends Emitter {
     if (this.receptorFilter.has(id)) this.receptorFilter.delete(id);
     else this.receptorFilter.add(id);
     this.emit('receptors');
+  }
+
+  /* ---------- microscope mode ---------- */
+
+  setMicro(k, v) {
+    if (this.micro[k] === v) return;
+    this.micro[k] = v;
+    this.emit('micro', k);
+  }
+
+  /**
+   * Explicit request for Microscope mode. Pins it, so camera distance no longer
+   * turns it off — leaving is also explicit, or by pulling back far enough that
+   * the hysteresis releases the pin.
+   */
+  setMicroPinned(on) {
+    this.micro.pinned = !!on;
+    if (on) this.micro.active = true;
+    this.emit('micro', 'pinned');
   }
 
   setMicroFocus(id) {

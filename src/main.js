@@ -20,13 +20,15 @@ import { QualityController, detectHardware, TIERS } from './core/quality.js';
 import { clamp, el, approach } from './core/util.js';
 import { PostFX } from './gfx/postfx.js';
 import { GLOBAL, backdrop, groundPad } from './gfx/materials.js';
-import { SignalStreams, NetworkOverlay } from './gfx/signals.js';
+import { SignalStreams, NetworkOverlay, MicroPulses } from './gfx/signals.js';
 import { buildNetwork, Tensegrity } from './sim/tensegrity.js';
 import { Physiology } from './sim/physiology.js';
 import { Afferent } from './sim/afferent.js';
 import { buildBody } from './anatomy/index.js';
 import { setReceptorDensity } from './anatomy/receptors.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
+import { buildSpindle, MICRO_ROIS } from './sim/spindle.js';
+import { P as P_MICRO, listParams, setParam } from './data/micro/literature_params.js';
 import { RECEPTORS } from './anatomy/info.js';
 import { IdRegistry } from './platform/ids.js';
 import { PropertyStore, registerReferenceData } from './platform/properties.js';
@@ -152,6 +154,34 @@ async function main() {
   const overlay = new NetworkOverlay(solver);
   scene.add(overlay.group);
 
+  /* ---------------- micro-mechanics ----------------
+     One spindle in one network element, integrated at a fixed substep. It reads
+     the solved element length directly, so its stretch, its firing rate and its
+     spike times are consequences of the same solve that moves the whole body —
+     there is no second physics here and no authored timing. */
+  let microSpindle = buildSpindle(solver, store.micro.roi);
+  if (!microSpindle) {
+    console.warn('[continuum] no micro ROI resolved — Microscope mode will show geometry only');
+  }
+
+  /* The afferent axon leaving the ending. Parented to the micro root rather than
+     to the spindle model, so the pulses are not stretched along with the capsule
+     when the muscle lengthens. Coordinates are in units of the spindle's own
+     length, which comes from the literature table. */
+  const microPulses = (() => {
+    const S = P_MICRO('spindleLength') * 1e-3; // mm → m
+    const path = [
+      new THREE.Vector3(S * 0.06, 0, 0),
+      new THREE.Vector3(S * 0.42, S * 0.22, 0),
+      new THREE.Vector3(S * 0.9, S * 0.52, S * 0.05),
+      new THREE.Vector3(S * 1.5, S * 0.92, S * 0.12),
+    ];
+    const mp = new MicroPulses(path);
+    mp.setPixelRatio(dpr);
+    micro.root.add(mp.points);
+    return mp;
+  })();
+
   await setBoot('binding property layers', 0.9);
 
   /* ---------------- property layer ---------------- */
@@ -165,7 +195,7 @@ async function main() {
   controls.target.set(0, 0.95, 0);
   controls.setSpan(SCALES[0].span * 1.05, true);
 
-  const scales = new ScaleManager({ store, controls, registry, receptors, micro, signals, camera });
+  const scales = new ScaleManager({ store, controls, registry, receptors, micro, signals, camera, spindle: microSpindle });
   scales.applyEntitlements();
 
   /* ============================================================
@@ -184,6 +214,11 @@ async function main() {
     setReceptorDensity(receptors.populations, tier.receptors);
     signals.setDensity(tier.particles);
     signals.setSizeFactor(tier.signalSize);
+    /* The micro pulses share the particle budget, because they are the same kind
+       of cost. Density only changes how many in-flight spikes are *drawn* — the
+       spike generator and the conduction delay are untouched, so a low tier shows
+       a sparser axon with identical timing. */
+    microPulses.setDensity(tier.particles);
     postfx.setSamples(tier.msaa);
     postfx.setLevels(tier.bloomLevels);
     postfx.set('uChroma', tier.chroma);
@@ -331,8 +366,37 @@ async function main() {
   const lastPick = { point: new THREE.Vector3(0, 1.2, 0), key: null };
   let hoverKey = null;
   let lastHoverAt = 0;
+  let microWasActive = store.micro.active;
 
   store.on('layers', () => registry.applyLayers(store, store.scaleFloat));
+
+  /* Changing the region rebinds the spindle to a different network element. The
+     unit is rebuilt rather than mutated so its adaptation state, phase and spike
+     history start clean — carrying them across would mean the first spikes after
+     a change described the previous muscle. */
+  store.on('micro', (k) => {
+    if (k === 'roi') {
+      const next = buildSpindle(solver, store.micro.roi);
+      if (next) {
+        scales.spindle = next;
+        microSpindle = next;
+        hud.toast(`Microscope region: <b>${next.label}</b>`, 2600);
+      } else {
+        hud.toast('That region has no resolvable network element', 3600);
+      }
+    }
+
+    /* Entering the mode once puts the spindle on screen, because the spindle is
+       the only receptor v1 models mechanically — showing a Pacinian corpuscle
+       under a caption about intrafusal stretch would be a lie about what is
+       being computed. Only the *transition* forces it: picking another receptor
+       while already inside stays picked, and the other models simply hold a
+       fixed shape, which the read-out and the caption both make plain. */
+    if (store.micro.active !== microWasActive) {
+      microWasActive = store.micro.active;
+      if (store.micro.active && store.microFocus !== 'spindle') store.setMicroFocus('spindle');
+    }
+  });
 
   store.on('render', (k) => {
     if (k === 'quality') {
@@ -738,6 +802,19 @@ async function main() {
         else if (!help.hidden) closeHelp();
         else store.clearSelection();
         break;
+      case 'm':
+        if (e.shiftKey) {
+          if (!entitlements.require('scale.deep', { mode: 'microscope' })) break;
+          store.setMicroPinned(!store.micro.pinned);
+          panels.syncMicroControls?.();
+          hud.toast(
+            store.micro.pinned
+              ? '<b>Microscope mode pinned</b> — micro-mechanics on one region of interest'
+              : 'Microscope mode released — it will follow camera distance again',
+            3000
+          );
+        }
+        break;
       case 'f':
         if (e.shiftKey) {
           store.setRender('perfHud', !store.render.perfHud);
@@ -808,6 +885,7 @@ async function main() {
     renderer.setSize(w, h, true);
     postfx.setSize(w, h, dpr);
     signals.setPixelRatio(dpr);
+    microPulses.setPixelRatio(dpr);
     hud.setBufferSize(postfx.w, postfx.h);
   }
 
@@ -961,6 +1039,14 @@ async function main() {
     solver.step(dt * (store.physio.running ? 1 : 0.35) || 1e-4);
     afferent.step(dt * (store.physio.running ? speed : 0.15));
 
+    /* Micro-mechanics. Stepped with the *same* effective simulation time as
+       everything else, so slowing the physiology slows the spike train with it
+       and pausing stops it dead rather than letting it free-run. The unit does
+       its own fixed-substep integration internally, so spike times do not depend
+       on the frame rate. Cheap enough to run always: one element length, one
+       rate evaluation and a phase accumulator. */
+    if (microSpindle) microSpindle.step(store.physio.running ? dt * speed : 0);
+
     /* ---- camera & scale ----
        Wall-clock, not the clamped simulation timestep. The camera is
        presentation, not physics: a two-second cinematic descent has to take two
@@ -991,17 +1077,28 @@ async function main() {
     } else {
       GLOBAL.uCutDist.value = 0;
     }
+    /* Steady the gross body motion in Microscope mode.
+
+       This damps the *drawn* displacement only — the solver, the element length
+       the spindle reads, and every number in the read-out are untouched. At a
+       ten-millimetre view a body swaying with the breath makes the subject
+       impossible to hold in frame; the point of the mode is to watch one ending,
+       not to fight the camera. */
+    const microSteady = store.micro.active && store.micro.steady;
     // deformation is exaggerated slightly at coarse scales so millimetre motion
     // is readable from across the room, and true at close range
     GLOBAL.uDispScale.value = approach(
       GLOBAL.uDispScale.value,
-      scales.tier < 1.5 ? 1.5 : scales.tier < 2.6 ? 1.15 : 1.0,
+      microSteady ? 0.2 : scales.tier < 1.5 ? 1.5 : scales.tier < 2.6 ? 1.15 : 1.0,
       3,
       raw
     );
 
     /* ---- signal + overlay + world-space tools ---- */
     signals.update(store);
+    // one dot per action potential in transit, placed by how long ago the spike
+    // generator emitted it — not by a phase of its own
+    microPulses.update(microSpindle, store.micro.active && micro.root.visible);
     overlay.update(store);
     measures.update();
     annotations.update();
@@ -1055,6 +1152,8 @@ async function main() {
     if (uiAcc > 1 / 24) {
       hud.update(uiAcc);
       panels.tick();
+      hud.microVisible(store.micro.active && !!microSpindle?.resolved);
+      if (microSpindle) hud.updateMicro(microSpindle);
       hud.updatePerf({
         quality: qualityCtl.stats(),
         info: renderer.info,
@@ -1131,6 +1230,21 @@ async function main() {
       applyClaim: (claim) => entitlements.applyClaim(claim),
       claim: () => ({ ...entitlements.claim }),
       session: () => (auth.session ? { ...auth.session } : null),
+    },
+    /* Micro-mechanics, exposed for validation rather than authoring. The
+       read-out here is the same unamplified bag the panel prints, and
+       setParam moves a published constant inside its own literature range —
+       there is no way through this surface to inject a spike time. */
+    micro: {
+      get spindle() {
+        return microSpindle;
+      },
+      rois: MICRO_ROIS,
+      params: () => listParams(),
+      param: (id) => P_MICRO(id),
+      setParam: (id, v) => setParam(id, v),
+      readout: () => (microSpindle ? microSpindle.readout() : null),
+      spikes: (window_s = 1) => (microSpindle ? microSpindle.recent(window_s) : []),
     },
   };
 }

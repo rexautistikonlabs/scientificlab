@@ -11,6 +11,7 @@
 import { el, make, clamp, lerp, formatLength } from '../core/util.js';
 import { SCALES } from '../core/store.js';
 import { RECEPTORS } from '../anatomy/info.js';
+import { PULSE_TIME_DILATION } from '../sim/spindle.js';
 import { entitlements, CAPABILITIES } from '../platform/entitlements.js';
 
 /**
@@ -142,6 +143,7 @@ export class Hud {
     window.addEventListener('resize', () => this._resizeTrace());
 
     this._buildPerfPanel();
+    this._buildMicroPanel();
   }
 
   /* ============================================================
@@ -507,6 +509,113 @@ export class Hud {
     }
 
     this.traceLabel.textContent = `${pop.def.short} · ${pop.rate.toFixed(0)} Hz · fidelity ${(pop.fidelity * 100).toFixed(0)} % · ${pop.latency.toFixed(0)} ms`;
+  }
+
+  /* ============================================================
+     Microscope mode read-out
+     ============================================================ */
+
+  _buildMicroPanel() {
+    this.microPanel = el('#micro');
+    this.microRoi = el('#micro-roi');
+    this.microCanvas = el('#micro-raster-canvas');
+    this.microCtx = this.microCanvas.getContext('2d');
+    const host = el('#micro-rows');
+    host.innerHTML = '';
+    this.microRows = new Map();
+    const rows = [
+      ['length', 'length'],
+      ['delta', 'ΔL'],
+      ['strain', 'strain'],
+      ['velocity', 'dL/dt'],
+      ['rate', 'Ia rate'],
+      ['adapt', 'adaptation'],
+      ['delay', 'delay'],
+      ['flight', 'pulse flight'],
+    ];
+    for (const [id, label] of rows) {
+      host.appendChild(make('dt', '', label));
+      const dd = make('dd', '', '—');
+      host.appendChild(dd);
+      this.microRows.set(id, dd);
+    }
+    this._resizeRaster();
+    window.addEventListener('resize', () => this._resizeRaster());
+  }
+
+  _resizeRaster() {
+    const c = this.microCanvas;
+    if (!c) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    c.width = Math.max(1, Math.floor((c.clientWidth || 210) * dpr));
+    c.height = Math.floor(26 * dpr);
+    this._rasterDpr = dpr;
+  }
+
+  microVisible(on) {
+    if (this.microPanel) this.microPanel.hidden = !on;
+  }
+
+  /**
+   * Numbers straight from the spindle model, in the units the model works in.
+   *
+   * Nothing here is amplified. The drawn capsule exaggerates its stretch so the
+   * motion is visible at all; these figures do not, which is the point of having
+   * them next to it.
+   */
+  updateMicro(spindle) {
+    if (!this.microPanel || this.microPanel.hidden || !spindle?.resolved) return;
+    const r = spindle.readout();
+    this.microRoi.textContent = r.label;
+    const set = (id, text, hot = false) => {
+      const dd = this.microRows.get(id);
+      if (!dd) return;
+      if (dd.textContent !== text) dd.textContent = text;
+      dd.classList.toggle('hot', hot);
+    };
+    set('length', `${r.lengthMm.toFixed(3)} mm`);
+    set('delta', `${r.deltaLengthMm >= 0 ? '+' : ''}${r.deltaLengthMm.toFixed(4)} mm`, r.deltaLengthMm > 0);
+    set('strain', `${r.strainPct >= 0 ? '+' : ''}${r.strainPct.toFixed(3)} %`, r.strainPct > 0);
+    set('velocity', `${r.velocityMmS >= 0 ? '+' : ''}${r.velocityMmS.toFixed(2)} mm/s`, r.velocityMmS > 0);
+    set('rate', `${r.rateMeanHz.toFixed(0)} spikes/s`, r.rateMeanHz > 120);
+    set('adapt', r.adaptation.toFixed(2));
+    /* The delay is real; the pulse you can watch travel is that delay slowed
+       down. Both are printed, because a viewer not told the flight is dilated
+       would read the drawn pulse as the model's timing. */
+    set('delay', `${r.conductionDelayMs.toFixed(2)} ms`);
+    set('flight', `drawn ×${PULSE_TIME_DILATION} slower`);
+    this._drawRaster(spindle);
+  }
+
+  /** One tick per spike over the last second. Positions come from the model. */
+  _drawRaster(spindle) {
+    const c = this.microCtx;
+    if (!c) return;
+    const W = this.microCanvas.width;
+    const H = this.microCanvas.height;
+    const dpr = this._rasterDpr || 1;
+    c.clearRect(0, 0, W, H);
+
+    c.strokeStyle = 'rgba(140,176,200,0.16)';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(0, H - 1);
+    c.lineTo(W, H - 1);
+    c.stroke();
+
+    const window_s = 1;
+    const now = spindle.time;
+    const spikes = spindle.recent(window_s);
+    c.strokeStyle = '#a58cff';
+    c.lineWidth = Math.max(1, 1.1 * dpr);
+    c.beginPath();
+    for (const t of spikes) {
+      const x = W - ((now - t) / window_s) * W;
+      if (x < 0 || x > W) continue;
+      c.moveTo(x, 3 * dpr);
+      c.lineTo(x, H - 3 * dpr);
+    }
+    c.stroke();
   }
 
   /* ---------------- tooltip ---------------- */

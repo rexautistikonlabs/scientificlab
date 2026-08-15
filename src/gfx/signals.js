@@ -18,7 +18,7 @@ import { nerveTrunks } from '../anatomy/neuro.js';
 import { VERTEBRAE } from '../anatomy/landmarks.js';
 import { clamp, rng } from '../core/util.js';
 
-import { signalMaterial, networkMaterial } from './materials.js';
+import { signalMaterial, networkMaterial, microPulseMaterial } from './materials.js';
 import { STRUT } from '../sim/tensegrity.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -389,5 +389,102 @@ export class NetworkOverlay {
     this.material.dispose();
     this.nodes.geometry.dispose();
     this.nodes.material.dispose();
+  }
+}
+
+/* ============================================================
+   Micro-mode afferent pulses
+
+   One action potential per drawn dot, positioned by how long ago the spike
+   generator emitted it as a fraction of its conduction delay. Nothing here has a
+   phase or a frequency of its own: if the spindle model emits no spikes the axon
+   is silent, and if the conduction velocity changes the dots visibly arrive
+   sooner or later. That is the whole point of drawing them separately from the
+   whole-body streams, which are a *rate* visualisation and quite deliberately
+   not spike-locked.
+   ============================================================ */
+
+/** Hard ceiling on drawn pulses. Timing never depends on this — only how many are shown. */
+const MAX_MICRO_PULSES = 32;
+
+export class MicroPulses {
+  /**
+   * @param {THREE.Vector3[]} path  axon centre-line, ending → central, in the
+   *                                micro group's local frame
+   */
+  constructor(path) {
+    this.curve = spline(path, 0.5);
+    this.material = microPulseMaterial();
+
+    const pos = new Float32Array(MAX_MICRO_PULSES * 3);
+    const age = new Float32Array(MAX_MICRO_PULSES);
+    const geom = new THREE.BufferGeometry();
+    this.posAttr = new THREE.BufferAttribute(pos, 3);
+    this.ageAttr = new THREE.BufferAttribute(age, 1);
+    geom.setAttribute('position', this.posAttr);
+    geom.setAttribute('aAge', this.ageAttr);
+    // the group is repositioned every frame, so a fixed bound would be wrong
+    geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e3);
+    geom.setDrawRange(0, 0);
+
+    this.points = new THREE.Points(geom, this.material);
+    this.points.frustumCulled = false;
+    this.points.renderOrder = 30;
+    this.points.name = 'microAfferentPulses';
+    this.points.visible = false;
+
+    /** the axon itself, so the pulses have something to travel along */
+    this.axon = null;
+    this._u = new Float32Array(MAX_MICRO_PULSES);
+    this._p = new THREE.Vector3();
+    this.drawn = 0;
+    this.density = 1;
+  }
+
+  setPixelRatio(v) {
+    this.material.uniforms.uPixelRatio.value = v;
+  }
+
+  /**
+   * Quality lever. Reduces how many in-flight spikes are *drawn*; the spike
+   * generator and the conduction delay are untouched, so a low-end machine shows
+   * a sparser axon with identical timing.
+   */
+  setDensity(frac) {
+    this.density = clamp(frac, 0.15, 1);
+  }
+
+  /**
+   * @param {import('../sim/spindle.js').SpindleUnit} spindle
+   * @param {boolean} visible
+   */
+  update(spindle, visible) {
+    this.points.visible = !!visible && !!spindle?.resolved;
+    if (!this.points.visible) {
+      this.drawn = 0;
+      this.points.geometry.setDrawRange(0, 0);
+      return;
+    }
+    const limit = Math.max(2, Math.round(MAX_MICRO_PULSES * this.density));
+    const n = spindle.inFlight(this._u, limit);
+    const pos = this.posAttr.array;
+    const age = this.ageAttr.array;
+    for (let i = 0; i < n; i++) {
+      const u = this._u[i];
+      this.curve.getPoint(clamp(u, 0, 1), this._p);
+      pos[i * 3] = this._p.x;
+      pos[i * 3 + 1] = this._p.y;
+      pos[i * 3 + 2] = this._p.z;
+      age[i] = u;
+    }
+    this.drawn = n;
+    this.posAttr.needsUpdate = true;
+    this.ageAttr.needsUpdate = true;
+    this.points.geometry.setDrawRange(0, n);
+  }
+
+  dispose() {
+    this.points.geometry.dispose();
+    this.material.dispose();
   }
 }

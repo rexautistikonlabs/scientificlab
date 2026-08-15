@@ -2470,3 +2470,96 @@ input[type='email']:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- microscope mode ----------
+   Sits opposite the frame diagnostics so the two never overlap. The caption is
+   part of the panel rather than a dismissible toast: a claim about what the
+   image is has to be visible for as long as the image is. */
+.micro {
+  position: absolute;
+  right: 300px;
+  top: 54px;
+  z-index: 28;
+  width: 236px;
+  padding: 9px 11px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  background: rgba(6, 9, 14, 0.82);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--sh);
+  pointer-events: none;
+}
+.micro header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+}
+.micro-tag {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  color: var(--violet);
+}
+.micro header em {
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--ink-2);
+  text-align: right;
+}
+.micro dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 8px;
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+.micro dt {
+  color: var(--ink-3);
+}
+.micro dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-1, var(--ink));
+}
+.micro dd.hot {
+  color: var(--amber);
+}
+.micro-raster {
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.micro-raster canvas {
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+.micro-raster span {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--ink-3);
+}
+.micro-caption {
+  margin: 7px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+@media (max-width: 1180px) {
+  .micro {
+    right: 12px;
+    top: auto;
+    bottom: 232px;
+  }
+}

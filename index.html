@@ -210,6 +210,16 @@
             <div class="ctrl-rows" id="physio-controls"></div>
           </section>
 
+          <section class="pgroup" data-cap="scale.deep">
+            <h2 class="pgroup-h">Microscope</h2>
+            <p class="pnote">
+              Micro-mechanics on one region of interest: simulated fibre length drives spindle stretch, a
+              literature-structured group Ia rate model, and spike timing carried at a published conduction
+              velocity. Engages on approach past the tissue scale, or pin it here.
+            </p>
+            <div class="ctrl-rows" id="micro-controls"></div>
+          </section>
+
           <section class="pgroup">
             <h2 class="pgroup-h">Render</h2>
             <div class="ctrl-rows" id="render-controls"></div>
@@ -256,6 +266,24 @@
       <div id="scalebar" class="scalebar" hidden>
         <div class="sb-line"><i></i></div>
         <span id="sb-text">1 m</span>
+      </div>
+
+      <!-- Microscope mode: model read-out and the standing caption.
+           The caption is not dismissible and not conditional. -->
+      <div id="micro" class="micro" hidden>
+        <header>
+          <span class="micro-tag">MICROSCOPE</span>
+          <em id="micro-roi">—</em>
+        </header>
+        <dl id="micro-rows"></dl>
+        <div class="micro-raster" title="Group Ia spike times over the last second, straight from the model's spike generator">
+          <canvas id="micro-raster-canvas" height="26"></canvas>
+          <span>Ia spikes · last 1 s</span>
+        </div>
+        <p class="micro-caption">
+          Literature-constrained schematic simulation of receptor mechanics and afferent timing.
+          Not histological photography, not patient data, not diagnostic.
+        </p>
       </div>
 
       <!-- Hover tooltip -->

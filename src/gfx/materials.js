@@ -716,6 +716,64 @@ export function signalMaterial() {
 }
 
 /* ============================================================
+   Micro-mode afferent pulses
+
+   Positions are written from the CPU each frame rather than derived in the
+   vertex shader from a baked path, because at microscope scale there are at most
+   a couple of dozen of them and their positions come from spike times the shader
+   has no way to know. Screen-constant size for the same reason the whole-body
+   streams use it: these mark an event, and a perspective-divided marker is
+   either invisible or a blob.
+   ============================================================ */
+
+const MICRO_PULSE_VERT = /* glsl */ `
+  attribute float aAge;      // 0 at the ending, 1 arriving centrally
+  uniform float uSize;
+  uniform float uPixelRatio;
+  varying float vAge;
+  void main() {
+    vAge = aAge;
+    vec4 mv = viewMatrix * modelMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mv;
+    // brightest as it leaves, dimmer as it goes — direction of travel is legible
+    gl_PointSize = clamp(uSize * uPixelRatio * (1.25 - 0.45 * aAge), 2.0, 16.0);
+  }
+`;
+
+const MICRO_PULSE_FRAG = /* glsl */ `
+  precision highp float;
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vAge;
+  void main() {
+    vec2 d = gl_PointCoord - 0.5;
+    float r = length(d) * 2.0;
+    if (r > 1.0) discard;
+    float core = pow(1.0 - r, 3.0);
+    float glow = pow(1.0 - r, 1.2) * 0.45;
+    float fade = 1.0 - 0.35 * vAge;
+    gl_FragColor = vec4(uColor * (core * 1.3 + glow), (core + glow) * uOpacity * fade);
+  }
+`;
+
+export function microPulseMaterial() {
+  return new THREE.ShaderMaterial({
+    vertexShader: MICRO_PULSE_VERT,
+    fragmentShader: MICRO_PULSE_FRAG,
+    uniforms: {
+      uSize: { value: 7.0 },
+      uPixelRatio: { value: 1 },
+      uOpacity: { value: 1 },
+      uColor: { value: new THREE.Color(0x8fe9ff) },
+    },
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
+/* ============================================================
    Tensegrity network overlay
    ============================================================ */
 

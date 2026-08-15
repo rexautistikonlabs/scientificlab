@@ -17,6 +17,39 @@ import { receptorSize, receptorsToScale } from '../anatomy/receptors.js';
 
 const LOG_SPANS = SCALES.map((s) => Math.log(s.span));
 
+/**
+ * Microscope-mode thresholds on the continuous tier position.
+ *
+ * Deliberately asymmetric — enter deep, leave shallow. The gap is the
+ * hysteresis band: inside it the mode holds whatever state it already had, so a
+ * camera drifting across the boundary cannot flicker the mode.
+ *
+ * The entry point sits just past the Tissue tier, where the six-millimetre
+ * spindle first fills a ten-millimetre view. Deeper than that the camera is
+ * inside the capsule, which is a fine place to look around but a poor place to
+ * *arrive*, so the mode engages on approach rather than on immersion.
+ */
+const MICRO_ENTER = 3.1;
+const MICRO_EXIT = 2.85;
+
+/**
+ * Display amplification of the spindle's axial strain.
+ *
+ * The simulated excursion is around a percent, which is correct and invisible.
+ * The capsule is drawn at this multiple so the motion can be seen; the strain
+ * and rate figures in the read-out are never amplified. Same convention the
+ * whole-body view uses for millimetre displacement.
+ */
+const MICRO_STRAIN_GAIN = 18;
+
+/**
+ * How much wider than the ROI the framing span is when Microscope mode opens.
+ *
+ * A little over one, so the subject fills the frame without touching its edges
+ * and the axon leaving the ending stays on screen.
+ */
+const MICRO_FRAME_MARGIN = 1.75;
+
 /** Continuous tier position for a given view span (metres). */
 export function tierFor(span) {
   const l = Math.log(clamp(span, 1e-6, 100));
@@ -32,7 +65,7 @@ export function tierFor(span) {
 }
 
 export class ScaleManager {
-  constructor({ store, controls, registry, receptors, micro, signals, camera }) {
+  constructor({ store, controls, registry, receptors, micro, signals, camera, spindle = null }) {
     this.store = store;
     this.controls = controls;
     this.registry = registry;
@@ -40,6 +73,8 @@ export class ScaleManager {
     this.micro = micro;
     this.signals = signals;
     this.camera = camera;
+    /** micro-mechanics unit driving the spindle geometry, set by main.js */
+    this.spindle = spindle;
 
     this.tier = 0;
     this.maxTier = SCALES.length - 1;
@@ -47,6 +82,10 @@ export class ScaleManager {
     this._microActive = null;
     this._microPos = new THREE.Vector3(0, 1.2, 0);
     this._q = new THREE.Quaternion();
+    /** cached un-scaled world extent of each micro model, metres — for framing */
+    this._microExtent = new Map();
+    this._box = new THREE.Box3();
+    this._vec = new THREE.Vector3();
 
     // an interesting default target per tier, used when the user jumps tiers
     // without having selected anything
@@ -187,9 +226,35 @@ export class ScaleManager {
     /* ---- signal particle scaling ---- */
     this.signals.setScale(t);
 
+    /* ---- Microscope mode latch ----
+       Two different thresholds, deliberately. A single threshold sitting under a
+       slowly orbiting camera toggles the whole mode — caption, read-out, ROI
+       framing — on and off several times a second. Entering deeper than leaving
+       means the mode is sticky once you are inside it. An explicit pin overrides
+       distance entirely, and is only released by pulling back past the exit. */
+    const m = this.store.micro;
+    const wasActive = m.active;
+    if (m.pinned) {
+      if (t < MICRO_EXIT - 0.25) {
+        m.pinned = false;
+        m.active = false;
+        this.store.emit('micro', 'auto');
+      } else if (!m.active) {
+        m.active = true;
+        this.store.emit('micro', 'auto');
+      }
+    } else {
+      const want = m.active ? t > MICRO_EXIT : t > MICRO_ENTER;
+      if (want !== m.active) {
+        m.active = want;
+        this.store.emit('micro', 'auto');
+      }
+    }
+    if (m.active && !wasActive) this._frameMicroSubject();
+
     /* ---- micro-anatomy ---- */
     const microBlend = smootherstep(clamp((t - 3.15) / 0.75, 0, 1));
-    const wantMicro = microBlend > 0.01;
+    const wantMicro = microBlend > 0.01 || this.store.micro.active;
     this.micro.root.visible = wantMicro;
     if (wantMicro) {
       const id = this.store.microFocus;
@@ -216,11 +281,85 @@ export class ScaleManager {
           const u = mm.uniforms?.uOpacity;
           if (u) u.value = (mm.userData.baseOpacity ?? 1) * microBlend;
         }
+        this._driveSpindleGeometry(model);
       }
     } else if (this._microActive) {
       for (const [, m] of this.micro.models) m.group.visible = false;
       this._microActive = null;
     }
+  }
+
+  /**
+   * Un-scaled world extent of a micro model, metres. Measured once and cached.
+   *
+   * The group carries the live axial stretch, so the scale is divided back out —
+   * framing must not breathe with the subject, or the camera would chase a
+   * millimetre of strain in and out on every breath.
+   */
+  _extentOf(model) {
+    const hit = this._microExtent.get(model.id);
+    if (hit !== undefined) return hit;
+    const wasVisible = model.group.visible;
+    model.group.visible = true;
+    model.group.updateMatrixWorld(true);
+    this._box.setFromObject(model.group);
+    model.group.visible = wasVisible;
+    this._box.getSize(this._vec);
+    const s = model.group.scale;
+    const extent = Math.max(this._vec.x / (s.x || 1), this._vec.y / (s.y || 1), this._vec.z / (s.z || 1));
+    // an empty or not-yet-built group would otherwise cache a zero forever
+    const value = extent > 1e-6 ? extent : null;
+    if (value !== null) this._microExtent.set(model.id, value);
+    return value;
+  }
+
+  /**
+   * Pull back far enough to see the whole ROI when the mode engages.
+   *
+   * Microscope mode covers everything past the Tissue tier, and a six-millimetre
+   * spindle does not fit in the nine-hundred-micron Receptor view — arriving
+   * there by a tier jump put the camera inside the annulospiral coil, which is a
+   * fine place to look around and a useless place to *arrive*: the mode claims to
+   * focus one ROI and instead showed a yellow ribbon filling the frame.
+   *
+   * Only widens, and only on the transition into the mode. Zooming further in
+   * afterwards is the user's business and is left alone; this is the framing the
+   * mode opens with, not a leash.
+   */
+  _frameMicroSubject() {
+    const model = this.micro.models.get(this.store.microFocus);
+    if (!model) return;
+    const extent = this._extentOf(model);
+    if (!extent) return;
+    const want = extent * MICRO_FRAME_MARGIN;
+    if (this.controls.span >= want * 0.98) return;
+    this.controls.flyTo({ span: want, duration: 0.9 });
+  }
+
+  /**
+   * Stretch the drawn spindle by the simulated length of the muscle it lies in.
+   *
+   * A spindle sits in parallel with the extrafusal fibres, so its length follows
+   * the muscle's — that is the entire mechanical premise of the receptor, and it
+   * is why this is a scale factor taken straight from the solver rather than an
+   * authored animation. The transverse axes shrink as the reciprocal square root
+   * of the axial stretch, which conserves volume to first order; a capsule that
+   * lengthened without thinning would be showing something that does not happen.
+   *
+   * Strain here is small — around a percent — so it is amplified for display by
+   * a factor the read-out states, exactly as the whole-body view exaggerates
+   * millimetre motion. The *number* in the panel is always the true strain.
+   */
+  _driveSpindleGeometry(model) {
+    const sp = this.spindle;
+    if (!sp || !sp.resolved || model.id !== 'spindle') {
+      model.group.scale.set(1, 1, 1);
+      return;
+    }
+    const gain = this.store.micro.active ? MICRO_STRAIN_GAIN : 1;
+    const axial = clamp(1 + sp.strain * gain, 0.55, 1.9);
+    const transverse = 1 / Math.sqrt(axial);
+    model.group.scale.set(transverse, axial, transverse);
   }
 
   /** Scale-bar readout: a round physical length and its width in pixels. */

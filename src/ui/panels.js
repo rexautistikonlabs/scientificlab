@@ -9,6 +9,8 @@ import { LAYERS, TOOLS } from '../core/store.js';
 import { CHAINS } from '../anatomy/chains.js';
 import { RECEPTORS, RECEPTOR_ORDER, describe } from '../anatomy/info.js';
 import { entitlements, CAPABILITIES } from '../platform/entitlements.js';
+import { MICRO_ROIS } from '../sim/spindle.js';
+import { MICRO_PARAMS, setParam } from '../data/micro/literature_params.js';
 
 export class Panels {
   constructor({ store, registry, afferent, solver, actions, props, premium }) {
@@ -32,6 +34,7 @@ export class Panels {
     this._buildReceptors();
     this._buildMechControls();
     this._buildPhysioControls();
+    this._buildMicroControls();
     this._buildRenderControls();
     this._bindGlobalButtons();
 
@@ -364,6 +367,80 @@ export class Panels {
       title: 'Slow the physiology down to inspect a single cycle',
       cap: 'physio.advanced',
     });
+  }
+
+  /* ============================================================
+     Microscope mode
+     ============================================================ */
+
+  _buildMicroControls() {
+    const host = el('#micro-controls');
+    if (!host) return;
+    host.innerHTML = '';
+    const m = this.store.micro;
+
+    this._microPin = this._check(host, {
+      label: 'Pin Microscope mode',
+      value: m.pinned,
+      onChange: (v) => this.store.setMicroPinned(v),
+      title: 'Hold the mode on regardless of camera distance (⇧M). Otherwise it engages past the tissue scale.',
+      cap: 'scale.deep',
+    });
+
+    this._check(host, {
+      label: 'Steady the body',
+      value: m.steady,
+      onChange: (v) => this.store.setMicro('steady', v),
+      title:
+        'Damp the drawn gross-body motion so a millimetre-scale subject holds still. ' +
+        'Display only — the simulation and every number in the read-out are unaffected.',
+      cap: 'scale.deep',
+    });
+
+    this._segmented(host, {
+      label: 'Region',
+      options: MICRO_ROIS.map((r) => ({ id: r.id, name: r.label.split(' · ')[0] })),
+      value: m.roi,
+      onPick: (v) => this.store.setMicro('roi', v),
+      title: 'Which muscle the spindle is placed in. Changing it rebinds to that network element.',
+      cap: 'scale.deep',
+    });
+
+    /* Two parameters are exposed for tuning because they are the two the
+       acceptance checks turn on: move either and the pulses visibly arrive
+       sooner or later. Both are clamped to their published range by the
+       parameter table itself, so the control cannot leave the literature. */
+    for (const id of ['iaConductionVelocity', 'iaPathLength']) {
+      const p = MICRO_PARAMS[id];
+      if (!p) continue;
+      const toSlider = (v) => Math.round(((v - p.min) / (p.max - p.min)) * 1000);
+      const fromSlider = (v) => p.min + (v / 1000) * (p.max - p.min);
+      this._slider(host, {
+        label: p.symbol === 'ℓ' ? 'Path length' : 'Conduction velocity',
+        min: 0,
+        max: 1000,
+        step: 1,
+        value: toSlider(p.value),
+        format: (v) => {
+          const x = fromSlider(v);
+          return p.unit === 'm' ? `${(x * 100).toFixed(1)} cm` : `${x.toFixed(0)} ${p.unit}`;
+        },
+        onInput: (v) => setParam(id, fromSlider(v)),
+        title: `${p.notes}\n\nPublished range ${p.min}–${p.max} ${p.unit} (${p.species}).`,
+        cap: 'scale.deep',
+      });
+    }
+
+    const note = make('p', 'pnote');
+    note.innerHTML =
+      'Parameters are read from the literature table and clamped to their published ranges. ' +
+      '<b>Citations are unverified placeholders</b> — a human must check each against its primary source.';
+    host.appendChild(note);
+  }
+
+  /** Reflect the store after a shortcut toggled the mode. */
+  syncMicroControls() {
+    if (this._microPin) this._microPin.checked = this.store.micro.pinned;
   }
 
   /** Reflect render state a keyboard shortcut may have changed behind the panel. */
