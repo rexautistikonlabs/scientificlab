@@ -152,6 +152,85 @@ extreme corner of both sliders at once; the defaults are zero.
 
 ---
 
+## Scenario 5 — Baseline vs restriction (controlled experiment)
+
+The **Computational experiment** section runs one protocol twice — once clean,
+once perturbed — holding everything else identical, and reports the difference in
+Layer A and Layer B outputs.
+
+**In the UI:** right panel → *Computational experiment*. Pick a protocol, a
+perturbation, a magnitude, press **Run experiment**. The result table tags each
+row with its layer, states how much of the commanded excursion reached the
+ending, and carries the caption below.
+
+**From the console:**
+
+```js
+CONTINUUM.micro.experimentSummary('passiveRHR', {
+  model: 'extended', perturbation: 'restriction', magnitude: 0.6
+});
+```
+
+Measured on the passive RHR preset at 60 % restriction:
+
+| | baseline | perturbed | Δ |
+|---|---|---|---|
+| ΔL delivered (mm) | 0.400 | 0.301 | −24.8 % |
+| Peak rate — Basic (Hz) | 183.5 | 156.7 | −14.6 % |
+| Peak rate — Extended (Hz) | 84.7 | 79.3 | −6.3 % |
+| Plateau — Basic (Hz) | 96.0 | 84.6 | −11.9 % |
+
+75 % of the commanded excursion reaches the ending; lag τ 13.3 ms.
+
+Sweeping the magnitude, both the delivered strain and the peak rate fall
+monotonically:
+
+| magnitude | transmission | ΔL delivered | peak rate |
+|---|---|---|---|
+| 0 % | 1.000 | 0.400 mm | 84.7 Hz |
+| 25 % | 0.879 | 0.352 mm | 82.2 Hz |
+| 50 % | 0.784 | 0.314 mm | 80.2 Hz |
+| 75 % | 0.708 | 0.283 mm | 77.9 Hz |
+| 100 % | 0.645 | 0.258 mm | 75.7 Hz |
+
+**Release** goes the other way and is capped: at 80 % it delivers 0.424 mm
+against a 0.400 mm baseline. A release restores glide toward healthy tissue and
+stops there.
+
+### What this result is
+
+> In-silico prediction under the selected model — not human data, and not
+> evidence for or against any hypothesis.
+
+The perturbation model is documented in `METRICS.md` and its parameters carry the
+citation key `REX_MODELLING_ASSUMPTION`: they are this product's assumptions, not
+literature values.
+
+---
+
+## Saturation, made visible
+
+Run `blumShaped` under the **Basic** drive and the experiment refuses to be
+quiet about it:
+
+```
+⚠ Rate reached the 300 spikes/s ceiling in both conditions — the dynamic
+  response is clipped and these numbers describe the clamp as much as the
+  receptor.
+⚠ The Basic drive was calibrated for this ROI's sub-millimetre excursion.
+```
+
+The numbers show why the warning matters: 85 % of samples pinned at r_max,
+dynamic index exactly **1.000**, and a Δ of **0 %** on every rate metric — the
+perturbation is real and completely invisible, because the clamp ate it. The
+same protocol under Extended gives a dynamic index of 2.57 and an 11.6 % fall in
+peak rate.
+
+This is the reason presets carry a `safeFor` field and the panel warns before
+you run a mismatched pair.
+
+---
+
 ## Reading the numbers honestly
 
 **Playback runs in simulation time, not wall clock.** The model's clock is the

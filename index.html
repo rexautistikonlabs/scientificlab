@@ -218,6 +218,28 @@
               velocity. Engages on approach past the tissue scale, or pin it here.
             </p>
             <div class="ctrl-rows" id="micro-controls"></div>
+
+            <!-- Model layers: what kind of claim each number carries. Collapsed
+                 by default; the point is that it is always reachable, not that
+                 it is always in the way. -->
+            <details class="layers-note" id="layers-note">
+              <summary>Model layers — what these numbers are</summary>
+              <div id="layers-body"></div>
+            </details>
+          </section>
+
+          <!-- Controlled computational experiment: the same protocol run twice,
+               once clean and once perturbed. -->
+          <section class="pgroup" id="sec-experiment" data-cap="scale.deep">
+            <h2 class="pgroup-h">Computational experiment</h2>
+            <p class="pnote">
+              One protocol, run twice: once clean, once with a mechanical perturbation. Everything else is held
+              identical, so the difference is attributable to the perturbation. Results are predictions under the
+              selected receptor model.
+            </p>
+            <div class="ctrl-rows" id="experiment-controls"></div>
+            <div id="experiment-results" class="exp-results" hidden></div>
+            <p class="exp-caption" id="experiment-caption" hidden></p>
           </section>
 
           <section class="pgroup">

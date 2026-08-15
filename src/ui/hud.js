@@ -13,6 +13,7 @@ import { SCALES } from '../core/store.js';
 import { RECEPTORS } from '../anatomy/info.js';
 import { PULSE_TIME_DILATION } from '../sim/spindle.js';
 import { entitlements, CAPABILITIES } from '../platform/entitlements.js';
+import { OUTPUTS, LAYERS as MODEL_LAYERS } from '../platform/layers.js';
 
 /**
  * The instrument strip.
@@ -269,14 +270,23 @@ export class Hud {
     host.innerHTML = '';
     for (const m of METERS) {
       const node = make('div', 'meter');
+      /* Every meter on this strip is a Layer C composite: real arithmetic over
+         real state, compressing something multi-dimensional into one bar. The
+         tag says so and the tooltip carries the actual definition, because a
+         bar labelled "Signal integrity" invites being read as a measurement and
+         it is a weighted product of three modelled quantities. */
+      const out = OUTPUTS[m.id];
+      const layer = out?.layer ?? 'C';
       node.innerHTML = `
         <div class="mt-top">
-          <span class="mt-lbl">${m.label}</span>
+          <span class="mt-lbl"><span class="layer-tag layer-${layer.toLowerCase()}">${layer}</span>${m.label}</span>
           <span class="mt-val">—<small>${m.unit}</small></span>
         </div>
         <div class="mt-track"><div class="mt-fill" style="background:${m.color}"></div></div>
         <div class="mt-note">${m.note}</div>`;
-      node.title = `${m.label} — ${m.note}`;
+      node.title = out
+        ? `${out.name} — ${MODEL_LAYERS[layer].short}: ${MODEL_LAYERS[layer].name}\n\n${out.definition}\n\n${MODEL_LAYERS[layer].blurb}`
+        : `${m.label} — ${m.note}`;
       host.appendChild(node);
       this.meters.set(m.id, {
         def: m,
@@ -313,7 +323,14 @@ export class Hud {
           m.node.addEventListener('click', () => this.onLockedClick?.(m.def.cap, m.def.label));
         }
       } else {
-        m.node.title = `${m.def.label} — ${m.def.note}`;
+        /* Restore the *layer* title, not the short note: syncEntitlements runs
+           on every tier change and would otherwise quietly strip the definition
+           that makes a composite legible as a composite. */
+        const out = OUTPUTS[m.def.id];
+        const L = out ? MODEL_LAYERS[out.layer] : null;
+        m.node.title = out
+          ? `${out.name} — ${L.short}: ${L.name}\n\n${out.definition}\n\n${L.blurb}`
+          : `${m.def.label} — ${m.def.note}`;
         m.node.style.cursor = '';
       }
     }

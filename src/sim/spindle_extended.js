@@ -308,6 +308,51 @@ export const PROTOCOLS = {
     holdMs: 1200,
     returnMs: 400,
   },
+
+  /* ---- literature-shaped presets ----
+     "Literature protocol" here means the *shape* of a classic stretch protocol,
+     nothing more. There is no scored comparison against any published series,
+     because this product holds no published series to compare against. A
+     preset that reported a fidelity percentage would be inventing a number. */
+  passiveRHR: {
+    id: 'passiveRHR',
+    name: 'Passive ramp–hold–release (educational)',
+    blurb: 'A small ramp–hold–release sized to stay inside the Basic drive’s working range. The safe starting point.',
+    amplitudeMm: 0.4,
+    rampMs: 350,
+    holdMs: 1400,
+    returnMs: 350,
+    expected: 'Burst during the ramp, decay to a lower held plateau, silence on release.',
+    safeFor: ['basic', 'extended'],
+  },
+  blumShaped: {
+    id: 'blumShaped',
+    name: 'Blum-shaped RHR (3 mm)',
+    blurb:
+      'A multi-millimetre ramp–hold–release of the shape used in the stretch literature. Educational amplitude, not ' +
+      'taken from any figure. Saturates the Basic drive — use Extended.',
+    amplitudeMm: 3.0,
+    rampMs: 400,
+    holdMs: 1500,
+    returnMs: 400,
+    expected: 'Large burst on the ramp, marked decay to plateau, dynamic index well above one.',
+    safeFor: ['extended'],
+    warn:
+      'This ROI’s real excursion is a fraction of a millimetre. At 3 mm the Basic drive pins at its ceiling and the ' +
+      'dynamic response disappears into the clamp.',
+  },
+  velocitySeries: {
+    id: 'velocitySeries',
+    name: 'Velocity series',
+    blurb: 'Same amplitude at three speeds. Run it three times, changing only the ramp.',
+    amplitudeMm: 2.0,
+    rampMs: 400,
+    holdMs: 1200,
+    returnMs: 400,
+    series: [1000, 400, 150],
+    expected: 'Early burst grows with ramp speed; the held plateau barely moves.',
+    safeFor: ['extended'],
+  },
 };
 
 /**

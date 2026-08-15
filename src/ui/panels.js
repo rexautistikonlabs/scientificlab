@@ -11,6 +11,8 @@ import { RECEPTORS, RECEPTOR_ORDER, describe } from '../anatomy/info.js';
 import { entitlements, CAPABILITIES } from '../platform/entitlements.js';
 import { MICRO_ROIS } from '../sim/spindle.js';
 import { PROTOCOLS } from '../sim/spindle_extended.js';
+import { runExperiment, PERTURBATIONS } from '../sim/experiment.js';
+import { LAYERS as MODEL_LAYERS, OUTPUTS, outputsIn, EXPERIMENT_CAPTION, LAYER_NOTE } from '../platform/layers.js';
 import { MICRO_PARAMS, setParam } from '../data/micro/literature_params.js';
 
 export class Panels {
@@ -36,6 +38,8 @@ export class Panels {
     this._buildMechControls();
     this._buildPhysioControls();
     this._buildMicroControls();
+    this._buildLayersNote();
+    this._buildExperimentControls();
     this._buildRenderControls();
     this._bindGlobalButtons();
 
@@ -508,8 +512,190 @@ export class Panels {
     host.appendChild(note);
   }
 
+
+  /* ============================================================
+     Model layers, and the controlled experiment
+     ============================================================ */
+
+  /** The always-reachable explanation of what kind of claim each number is. */
+  _buildLayersNote() {
+    const host = el('#layers-body');
+    if (!host) return;
+    host.innerHTML =
+      Object.values(MODEL_LAYERS)
+        .map(
+          (L) => `<div class="layer-row layer-${L.id.toLowerCase()}">
+            <b><span class="layer-tag">${L.short}</span> ${L.name}</b>
+            <p>${L.blurb}</p>
+            <em>${outputsIn(L.id).slice(0, 7).map((o) => o.name).join(' · ')}</em>
+          </div>`
+        )
+        .join('') + `<p class="layer-foot">${LAYER_NOTE}</p>`;
+  }
+
+  _buildExperimentControls() {
+    const host = el('#experiment-controls');
+    if (!host) return;
+    host.innerHTML = '';
+    this._exp = { protocol: 'passiveRHR', perturbation: 'restriction', magnitude: 0.6 };
+
+    this._segmented(host, {
+      label: 'Protocol',
+      options: Object.values(PROTOCOLS)
+        .filter((p) => p.expected) // the literature-shaped presets, which carry an expected pattern
+        .map((p) => ({ id: p.id, name: p.name.split(' (')[0].replace('Passive ramp–hold–release', 'Passive RHR') })),
+      value: this._exp.protocol,
+      onPick: (v) => {
+        this._exp.protocol = v;
+        this._syncExpNote();
+      },
+      title: 'The shape of the imposed stretch. "Literature protocol" means the shape only — no scored comparison against any published series exists in this product.',
+      cap: 'scale.deep',
+    });
+
+    this._segmented(host, {
+      label: 'Perturbation',
+      options: Object.values(PERTURBATIONS)
+        .filter((p) => p.id !== 'none')
+        .map((p) => ({ id: p.id, name: p.name })),
+      value: this._exp.perturbation,
+      onPick: (v) => {
+        this._exp.perturbation = v;
+        this._syncExpNote();
+      },
+      title: 'The mechanical change applied in the second run. Modelled as reduced transmission plus added lag at the ending — this product\'s own assumption, documented in METRICS.md.',
+      cap: 'scale.deep',
+    });
+
+    this._slider(host, {
+      label: 'Magnitude',
+      min: 0,
+      max: 100,
+      step: 5,
+      value: Math.round(this._exp.magnitude * 100),
+      format: (v) => `${v} %`,
+      onInput: (v) => {
+        this._exp.magnitude = v / 100;
+      },
+      title: 'How strong the perturbation is, on the same scale the intervention tool uses.',
+      cap: 'scale.deep',
+    });
+
+    const row = make('div', 'ctrl exp-run');
+    row.innerHTML = '<button class="btn btn-sm btn-primary" id="btn-run-exp">Run experiment</button>';
+    host.appendChild(row);
+    const btn = row.querySelector('#btn-run-exp');
+    btn.addEventListener('click', () => this.runExperiment());
+    /* Registered with the same list every other gated control uses, so it
+       re-enables on a tier change instead of staying dead until reload. */
+    this._gatedControls.push({ cap: 'scale.deep', input: btn, row, label: 'Computational experiment' });
+    this.syncGatedControls();
+
+    this._expNote = make('p', 'pnote exp-note');
+    host.appendChild(this._expNote);
+    this._syncExpNote();
+  }
+
+  _syncExpNote() {
+    if (!this._expNote) return;
+    const spec = PROTOCOLS[this._exp.protocol];
+    const model = this.store.micro.model;
+    const unsafe = spec?.safeFor && !spec.safeFor.includes(model);
+    this._expNote.innerHTML =
+      `<b>${spec?.name ?? '—'}</b> — ${spec?.blurb ?? ''}` +
+      (spec?.expected ? `<br><em>Expected pattern from the literature (direction only): ${spec.expected}</em>` : '') +
+      (unsafe
+        ? `<br><span class="exp-warn">⚠ This preset is sized for the ${spec.safeFor.join('/')} drive. ` +
+          `${spec.warn ?? 'The current drive may saturate.'}</span>`
+        : '');
+  }
+
+  /**
+   * Run baseline and perturbed conditions and render the comparison.
+   *
+   * Runs offline at full temporal resolution rather than on the live unit: the
+   * comparison has to hold everything except the perturbation identical, and a
+   * live body under a breath cycle does not.
+   */
+  runExperiment() {
+    const spec = PROTOCOLS[this._exp.protocol];
+    if (!spec) return;
+    const result = runExperiment(spec, {
+      model: this.store.micro.model,
+      perturbation: this._exp.perturbation,
+      magnitude: this._exp.magnitude,
+      gamma: { static: this.store.micro.gammaStatic, dynamic: this.store.micro.gammaDynamic },
+    });
+    this.lastExperiment = result;
+    this._renderExperiment(result);
+    return result;
+  }
+
+  _renderExperiment(r) {
+    const host = el('#experiment-results');
+    const cap = el('#experiment-caption');
+    if (!host) return;
+
+    const rows = [
+      ['maxStrainMm', 'A'],
+      ['peakRateHz', 'B'],
+      ['earlyBurstHz', 'B'],
+      ['plateauHz', 'B'],
+      ['dynamicIndex', 'B'],
+      ['spikes', 'B'],
+    ];
+    const label = {
+      maxStrainMm: 'ΔL delivered (mm)',
+      peakRateHz: 'Peak rate (Hz)',
+      earlyBurstHz: 'Early burst (Hz)',
+      plateauHz: 'Plateau (Hz)',
+      dynamicIndex: 'Dynamic index',
+      spikes: 'Spikes',
+    };
+
+    const warn = r.warnings.length
+      ? `<div class="exp-warnbox">${r.warnings.map((w) => `<p>⚠ ${w}</p>`).join('')}</div>`
+      : '';
+
+    host.innerHTML = `
+      <div class="exp-head">
+        <span>${r.protocol.name}</span>
+        <em>${r.model} drive · ${r.perturbation.name} ${Math.round(r.perturbation.magnitude * 100)} %</em>
+      </div>
+      <div class="exp-terms">
+        ${(r.perturbation.terms.transmission * 100).toFixed(0)} % of the commanded excursion reaches the ending ·
+        lag τ ${(r.perturbation.terms.tau * 1000).toFixed(1)} ms
+      </div>
+      ${warn}
+      <table class="exp-table">
+        <thead><tr><th></th><th>baseline</th><th>perturbed</th><th>Δ</th></tr></thead>
+        <tbody>
+          ${rows
+            .map(([k, layer]) => {
+              const d = r.delta[k];
+              if (!d) return '';
+              const pct = d.pct === null ? `${d.abs > 0 ? '+' : ''}${d.abs}` : `${d.pct > 0 ? '+' : ''}${d.pct} %`;
+              const cls = d.abs === 0 ? '' : d.abs > 0 ? 'up' : 'down';
+              return `<tr>
+                <th><span class="layer-tag layer-${layer.toLowerCase()}" title="${OUTPUTS[
+                  k === 'maxStrainMm' ? 'deltaLength' : k === 'spikes' ? 'spikes' : k === 'dynamicIndex' ? 'dynamicIndex' : 'rate'
+                ]?.definition ?? ''}">${layer}</span>${label[k]}</th>
+                <td>${d.from}</td><td>${d.to}</td><td class="${cls}">${pct}</td>
+              </tr>`;
+            })
+            .join('')}
+        </tbody>
+      </table>`;
+    host.hidden = false;
+    if (cap) {
+      cap.textContent = EXPERIMENT_CAPTION;
+      cap.hidden = false;
+    }
+  }
+
   /** Reflect the store after a shortcut toggled the mode. */
   syncMicroControls() {
+    this._syncExpNote();
     if (this._microPin) this._microPin.checked = this.store.micro.pinned;
   }
 

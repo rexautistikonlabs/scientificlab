@@ -116,6 +116,8 @@ Because identity is the contract, everything downstream composes without engine 
 | `gfx/` | Shared tissue shader, signal streams, network overlay, post pipeline |
 | `core/` | State store, scale-aware orbit controls, multi-scale manager |
 | `core/quality.js` | Tier table, hardware detection, adaptive quality controller |
+| `platform/layers.js` | The A/B/C layer taxonomy and every output's definition — the source of truth for `METRICS.md` |
+| `sim/experiment.js` | Controlled experiments: baseline vs perturbed, same protocol; the perturbation model |
 | `platform/ids.js` | ID derivation, aliases, region classification, manifest signature |
 | `platform/properties.js` | Base properties, live state, datasets, parameter sets, subject data, provenance |
 | `platform/entitlements.js` | Capability model, tiers, entitlement claims — the one seam a real licence service replaces |
@@ -534,6 +536,34 @@ capability and never touches a feature. To make it real:
 Nothing else changes. The three provider buttons, the plan cards, the cancel-at-period-end behaviour
 and the licence-key path are already wired to that shape. Offline and institutional seats keep the
 key path, which resolves to the same claim with `source: 'licence-key'`.
+
+## Model layers and claim discipline
+
+Every number carries a layer tag, and the layer says what kind of claim it is:
+**A** a mechanical proxy from the solver, **B** the literature-style receptor
+model, **C** a composite summary on the instrument strip. The whole telemetry
+strip is C. Definitions for all of them — with formulas where a formula is what
+honesty requires — are in `METRICS.md`, and the single source of truth is
+`src/platform/layers.js`.
+
+A **computational experiment** runs one protocol twice, once clean and once with
+a mechanical perturbation, holding everything else identical, and reports the
+difference in Layer A and B outputs. The perturbation is not a second physics
+engine: it changes what reaches the receptor — less transmission, more lag — and
+the receptor path is the same code in both conditions. Those two terms are this
+product's own modelling assumption, carry the citation key
+`REX_MODELLING_ASSUMPTION`, and have no literature source.
+
+What such a result means, and the sentence printed under every one of them:
+
+> In-silico prediction under the selected model — not human data, and not
+> evidence for or against any hypothesis.
+
+The model was built to express a set of mechanical ideas, so it cannot also be
+their test. This product does not say *proves*, *validates the hypothesis*,
+*diagnostic*, or *matches published data*, and shows no percentage as a
+prediction-fidelity or validation score — there is no published series here to
+score against. Protocol presets are called protocols, not benchmarks.
 
 ## Third-party scientific inspiration
 

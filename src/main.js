@@ -30,6 +30,8 @@ import { buildMicroAnatomy } from './anatomy/microanatomy.js';
 import { buildSpindle, MICRO_ROIS } from './sim/spindle.js';
 import { PROTOCOLS as MICRO_PROTOCOLS, simulateProtocol, peaksPerRepetition, ExtendedDrive } from './sim/spindle_extended.js';
 import { P as P_MICRO, listParams, setParam, BLUM_2020 } from './data/micro/literature_params.js';
+import { runExperiment as runMicroExperiment, summarise as summariseExperiment, PERTURBATIONS, perturbationTerms } from './sim/experiment.js';
+import { LAYERS as MODEL_LAYERS, OUTPUTS as MODEL_OUTPUTS, layerOf, EXPERIMENT_CAPTION } from './platform/layers.js';
 import { RECEPTORS } from './anatomy/info.js';
 import { IdRegistry } from './platform/ids.js';
 import { PropertyStore, registerReferenceData } from './platform/properties.js';
@@ -1235,6 +1237,9 @@ async function main() {
     /* validation helpers: one blob to send back, one table to read */
     diagnostics,
     qualityLog: () => qualityCtl.logText(),
+    /* UI, for tests and for hosts that need to re-sync after changing state */
+    panels,
+    hud,
     /* platform */
     ids,
     props,
@@ -1329,6 +1334,27 @@ async function main() {
       peaks: (spec, trace) => peaksPerRepetition(typeof spec === 'string' ? MICRO_PROTOCOLS[spec] : spec, trace),
       newDrive: () => new ExtendedDrive(),
       citation: () => ({ ...BLUM_2020 }),
+
+      /* ---- controlled experiments ----
+         Baseline and perturbed conditions of the same protocol, everything
+         else held identical. What comes back is a prediction under the
+         selected model, and `caption` is the sentence that must accompany it
+         wherever it is reported. */
+      perturbations: () => Object.values(PERTURBATIONS).map((p) => ({ ...p })),
+      perturbationTerms: (mode, magnitude) => perturbationTerms(mode, magnitude),
+      experiment: (specOrId, opts) =>
+        runMicroExperiment(typeof specOrId === 'string' ? MICRO_PROTOCOLS[specOrId] : specOrId, opts),
+      experimentSummary: (specOrId, opts) =>
+        summariseExperiment(runMicroExperiment(typeof specOrId === 'string' ? MICRO_PROTOCOLS[specOrId] : specOrId, opts)),
+      caption: () => EXPERIMENT_CAPTION,
+    },
+
+    /* Which layer any named output belongs to, and what it actually is. */
+    layers: {
+      all: () => JSON.parse(JSON.stringify(MODEL_LAYERS)),
+      outputs: () => JSON.parse(JSON.stringify(MODEL_OUTPUTS)),
+      of: (id) => layerOf(id),
+      define: (id) => MODEL_OUTPUTS[id]?.definition ?? null,
     },
   };
 }

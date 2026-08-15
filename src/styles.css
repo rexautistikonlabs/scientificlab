@@ -2829,3 +2829,186 @@ input[type='email']:focus {
 .micro-cite a:hover {
   color: var(--cyan);
 }
+
+/* ============================================================
+   Model layers, and the controlled experiment
+   ============================================================ */
+
+/* One small tag, three colours, used everywhere a number appears. Layer C is
+   deliberately the dimmest: it is the one most likely to be mistaken for a
+   measurement, so it gets the least visual authority. */
+.layer-tag {
+  display: inline-block;
+  min-width: 13px;
+  margin-right: 5px;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 13px;
+  text-align: center;
+  vertical-align: middle;
+  color: #04060a;
+  background: var(--ink-3);
+}
+.layer-a {
+  background: var(--cyan);
+}
+.layer-b {
+  background: #a58cff;
+}
+.layer-c {
+  background: var(--ink-3);
+}
+
+.layers-note {
+  margin-top: 10px;
+  font-size: 11px;
+}
+.layers-note > summary {
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.layers-note > summary:hover {
+  color: var(--ink-2);
+}
+.layer-row {
+  margin: 8px 0 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--line);
+}
+.layer-row.layer-a {
+  border-left-color: var(--cyan);
+  background: none;
+}
+.layer-row.layer-b {
+  border-left-color: #a58cff;
+  background: none;
+}
+.layer-row.layer-c {
+  border-left-color: var(--ink-3);
+  background: none;
+}
+.layer-row b {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-1);
+}
+.layer-row p {
+  margin: 2px 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.layer-row em {
+  font-style: normal;
+  font-size: 9.5px;
+  color: var(--ink-3);
+}
+.layer-foot {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* ---- experiment ---- */
+.exp-run {
+  display: block;
+}
+.exp-run .btn {
+  width: 100%;
+}
+.exp-note {
+  margin-top: 8px;
+}
+.exp-note em {
+  color: var(--ink-3);
+  font-style: normal;
+}
+.exp-warn {
+  color: var(--amber);
+}
+.exp-results {
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.exp-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-1);
+}
+.exp-head em {
+  font-style: normal;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 9.5px;
+}
+.exp-terms {
+  margin: 4px 0 8px;
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.exp-warnbox {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--amber);
+  border-radius: 0 5px 5px 0;
+  background: rgba(240, 180, 41, 0.07);
+}
+.exp-warnbox p {
+  margin: 0 0 4px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.exp-warnbox p:last-child {
+  margin: 0;
+}
+.exp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+.exp-table th,
+.exp-table td {
+  padding: 3px 4px;
+  text-align: right;
+  font-weight: 400;
+}
+.exp-table thead th {
+  color: var(--ink-3);
+  font-size: 9px;
+  border-bottom: 1px solid var(--line);
+}
+.exp-table tbody th {
+  text-align: left;
+  color: var(--ink-2);
+}
+.exp-table td {
+  font-family: var(--mono);
+  color: var(--ink-1);
+}
+.exp-table td.up {
+  color: #9fe86b;
+}
+.exp-table td.down {
+  color: #ff8f6a;
+}
+.exp-caption {
+  margin: 8px 0 0;
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+  font-style: italic;
+}

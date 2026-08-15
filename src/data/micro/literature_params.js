@@ -485,6 +485,66 @@ export const MICRO_PARAMS = {
       'bag-like one. The two differ in which term dominates, not in their equations. SCHEMATIC.',
     citation: cite('blum2020', BLUM),
   },
+
+  /* ------------------------------------------------------------
+     Perturbation layer — this product's own modelling assumptions
+     ------------------------------------------------------------
+
+     These are NOT literature values and carry no literature citation.
+     They parameterise how a mechanical intervention applied in this
+     product is assumed to reach the receptor, which is a modelling
+     choice made here and nowhere else. The citation key says so.
+
+     The structure mirrors the whole-body afferent model, which already
+     treats restriction as a loss of glide that lengthens the tissue
+     relaxation time constant. Reusing that shape rather than inventing
+     a second one means the micro path and the telemetry path disagree
+     about the direction of an effect only if one of them is wrong.
+     ------------------------------------------------------------ */
+
+  restrictionTransmission: {
+    id: 'restrictionTransmission',
+    symbol: 'k_trans',
+    value: 0.55,
+    min: 0,
+    max: 2,
+    unit: 'per unit restriction',
+    species: 'modelling assumption',
+    notes:
+      'How much a restriction reduces the excursion that reaches the receptor: transmission = 1/(1 + k_trans·m) for ' +
+      'intervention magnitude m. A stiffer parallel path takes a larger share of an imposed movement, so less of it ' +
+      'arrives where the ending sits. THIS PRODUCT\'S ASSUMPTION — not measured, not from any paper.',
+    citation: cite('REX_MODELLING_ASSUMPTION', 'An explicit modelling assumption of this product\'s perturbation layer. No literature source; not measured.'),
+  },
+
+  restrictionLagGain: {
+    id: 'restrictionLagGain',
+    symbol: 'k_lag',
+    value: 26,
+    min: 0,
+    max: 80,
+    unit: 'dimensionless',
+    species: 'modelling assumption',
+    notes:
+      'How much a restriction lengthens the local relaxation time constant: tau = tau_0·(1 + k_lag·m). Deliberately the ' +
+      'same gain the whole-body afferent model already uses for viscosity, so the two paths cannot disagree about the ' +
+      'direction of the effect. THIS PRODUCT\'S ASSUMPTION.',
+    citation: cite('REX_MODELLING_ASSUMPTION', 'An explicit modelling assumption of this product\'s perturbation layer. Mirrors VISCOSITY_GAIN in sim/afferent.js.'),
+  },
+
+  restrictionTauBase: {
+    id: 'restrictionTauBase',
+    symbol: 'tau_0',
+    value: 0.0008,
+    min: 0.0001,
+    max: 0.01,
+    unit: 's',
+    species: 'modelling assumption',
+    notes:
+      'Relaxation time constant of healthy tissue in the perturbation model. Same value as TISSUE_TAU in the whole-body ' +
+      'afferent model, for the same reason. THIS PRODUCT\'S ASSUMPTION.',
+    citation: cite('REX_MODELLING_ASSUMPTION', 'An explicit modelling assumption of this product\'s perturbation layer. Mirrors TISSUE_TAU in sim/afferent.js.'),
+  },
 };
 
 /** Read a parameter's working value. Throws on a typo rather than yielding NaN. */

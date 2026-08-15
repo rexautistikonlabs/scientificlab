@@ -7,6 +7,25 @@ resembles a slide.
 
 ---
 
+## Model layers, and what each one may claim
+
+| | Established / literature-style | Rex perturbation layer | Composites |
+|---|---|---|---|
+| **what it is** | Layer A mechanical proxies and the Layer B receptor model | An explicit mechanical change applied to the input of that model | Layer C summaries on the instrument strip |
+| **examples** | ΔL, strain, tension proxy, yank, availability, firing rate, spike times, conduction delay | Restriction / tension / release, as reduced transmission plus added lag | Network load, signal integrity, peak rise, L/R asymmetry |
+| **sourced from** | Published model structures, cited where relevant | **This product's own assumption** — citation key `REX_MODELLING_ASSUMPTION`, no literature source | Arithmetic over the above, with chosen weightings |
+| **may claim** | "A published-style model of a Ia ending, given this input, reports this" | "*If* the mechanics changed this way, *then* the model predicts this change" | "This is a summary of several modelled quantities" |
+| **may not claim** | To be a recording, a measurement, or a validated model of anyone | To be evidence about a body, or to prove or validate any hypothesis | To be a measurement of anything |
+
+The perturbation layer is **not a second physics engine**. It changes what
+arrives at the receptor and nothing else; the receptor path is the same code in
+both conditions of an experiment. That is what makes the difference between the
+two conditions attributable to the perturbation.
+
+And the reason the third row of "may not claim" matters: this model was built to
+express a set of mechanical ideas, so it cannot also be their test. Definitions
+for every metric are in `METRICS.md`.
+
 ## Two drive models
 
 | | **Basic (legacy)** — default | **Extended** — opt-in |
