@@ -540,4 +540,36 @@ published adult proportions; the mechanics, viscoelastic filtering and rate codi
 published principles qualitatively rather than reproducing any measured dataset. Figures shown in
 the inspector are representative literature ranges.
 
-It is not a diagnostic, clinical or treatment tool, and it does not describe any individual body.
+CONTINUUM is a literature-informed **simulation** for research and education. It is **not a medical
+device**, **not a diagnostic tool**, and **not a substitute for professional medical advice,
+diagnosis, or treatment**. It does not provide patient-specific clinical measurements or
+histological truth, and it does not describe any individual body. Microscope and receptor views are
+schematic and model-driven: display motion may be exaggerated for visibility, and numeric readouts
+are model outputs rather than lab recordings. Do not use CONTINUUM to make clinical decisions.
+
+### The acknowledgment gate
+
+A blocking modal carries that text on first load and must be acknowledged before the application is
+usable. It has no close control: no Escape, no backdrop dismissal, and `?skip` — which skips the
+start screen — deliberately does not skip it. The primary button stays disabled until the checkbox
+is ticked, focus is trapped inside the card, and the rest of the interface is `inert` while it is
+up, so the 3D view and every control behind it are genuinely unusable rather than merely covered.
+
+The acknowledgment is stored as `continuum_disclaimer_v1` — `{ version, acknowledgedAt }` — and is
+honoured only when `version` matches `DISCLAIMER_VERSION` in `src/ui/disclaimer.js`. **Bump that
+constant whenever the disclaimer text changes in substance**, so everyone re-acknowledges rather
+than being held to wording they never read. Unreadable or absent storage resolves toward showing the
+modal.
+
+An always-on line in the top bar — *Simulation · Not diagnostic · Not a medical device* — shortens
+but never disappears on narrow windows, and the same language appears in the help panel.
+
+To test the gate:
+
+```
+CONTINUUM.disclaimer.reset()   // or: localStorage.removeItem('continuum_disclaimer_v1')
+location.reload()
+```
+
+`CONTINUUM.disclaimer` also exposes `acknowledged()`, `record()` and `version`. Automated tests take
+the returning-user route by seeding the key before load rather than clicking through on every run.

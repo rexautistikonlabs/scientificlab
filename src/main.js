@@ -43,6 +43,7 @@ import { Panels } from './ui/panels.js';
 import { PremiumUI } from './ui/premium.js';
 import { Workspace } from './ui/workspace.js';
 import { Onboarding } from './ui/onboarding.js';
+import { Disclaimer, mountPersistentNotice, DISCLAIMER_VERSION } from './ui/disclaimer.js';
 
 const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
 
@@ -1002,8 +1003,17 @@ async function main() {
   /* Shown once per browser, and skippable with ?skip for testing and for demo
      links. The model is already built and rendering behind it, so this is a
      moment rather than a wait. */
-  if (seenStart || /[?&]skip\b/.test(location.search)) enterWorkspace();
-  else startEl.hidden = false;
+  /* The gate goes first and everything else waits on it.
+     Note that ?skip does not appear in this condition: the query string skips
+     the start screen, which is marketing, and must not skip the disclaimer,
+     which is not. Automated tests take the returning-user route instead, by
+     seeding `continuum_disclaimer_v1` before load. */
+  mountPersistentNotice();
+  const disclaimer = new Disclaimer();
+  disclaimer.require().then(() => {
+    if (seenStart || /[?&]skip\b/.test(location.search)) enterWorkspace();
+    else startEl.hidden = false;
+  });
 
   function frame() {
     requestAnimationFrame(frame);
@@ -1235,6 +1245,14 @@ async function main() {
        read-out here is the same unamplified bag the panel prints, and
        setParam moves a published constant inside its own literature range —
        there is no way through this surface to inject a spike time. */
+    /* The gate, reachable from the console for testing. reset() clears the
+       acknowledgment; the modal returns on the next load. */
+    disclaimer: {
+      reset: () => Disclaimer.reset(),
+      acknowledged: () => Disclaimer.acknowledged,
+      record: () => Disclaimer.record,
+      version: DISCLAIMER_VERSION,
+    },
     micro: {
       get spindle() {
         return microSpindle;

@@ -2563,3 +2563,172 @@ input[type='email']:focus {
     bottom: 232px;
   }
 }
+
+/* ============================================================
+   Mandatory non-diagnostic gate
+   ============================================================ */
+
+/* Above every other overlay, including the start screen (80) and the
+   upgrade card. Nothing in the product is allowed to render on top of this. */
+.disclaimer {
+  z-index: 200;
+  background: rgba(2, 4, 7, 0.86);
+  backdrop-filter: blur(10px);
+}
+.disclaimer-card {
+  width: min(560px, 100%);
+  padding: 28px 30px 24px;
+  border-color: var(--line-2);
+}
+.disclaimer-card h2 {
+  margin: 0 0 14px;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+}
+.disclaimer-body p {
+  margin: 0 0 12px;
+  font-size: 12.8px;
+  line-height: 1.62;
+  color: var(--ink-2);
+}
+.disclaimer-body b {
+  color: var(--ink-1);
+  font-weight: 600;
+}
+.disclaimer-nots {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  list-style: none;
+  border-left: 2px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  background: rgba(240, 180, 41, 0.06);
+}
+.disclaimer-nots li {
+  font-size: 12.8px;
+  line-height: 1.58;
+  color: var(--ink-2);
+}
+.disclaimer-hard {
+  margin: 0 0 18px !important;
+  color: var(--ink-1) !important;
+  font-weight: 600;
+}
+
+/* The checkbox row is the gate's real mechanism, so it is drawn as a control
+   rather than as fine print — someone skimming has to see the thing that is
+   stopping them. */
+.disclaimer-ack {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.022);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.disclaimer-ack:hover {
+  border-color: var(--cyan);
+  background: rgba(79, 214, 224, 0.05);
+}
+.disclaimer-ack input {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+.disclaimer-ack span {
+  font-size: 12.4px;
+  line-height: 1.5;
+  color: var(--ink-1);
+}
+.disclaimer-ack input:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* Fired when someone clicks the backdrop or presses Escape: the gate does not
+   move, so it says why by pointing at the control that would. */
+.disclaimer-ack.nudge {
+  animation: disclaimer-nudge 0.42s ease;
+}
+@keyframes disclaimer-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+    border-color: var(--line-2);
+  }
+  25% {
+    transform: translateX(-4px);
+    border-color: var(--cyan);
+  }
+  60% {
+    transform: translateX(4px);
+    border-color: var(--cyan);
+  }
+}
+
+.disclaimer-go {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 13px;
+}
+.disclaimer-go:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+.disclaimer-go:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* The always-on reminder. Lives in the top bar because it is the one piece of
+   chrome no panel, overlay or scale can cover. */
+.tb-notice {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+/* Narrow windows shorten the reminder rather than dropping it. A persistent
+   notice that disappears when the window gets small is not persistent. */
+.tb-notice-short {
+  display: none;
+}
+@media (max-width: 1180px) {
+  .tb-notice-full {
+    display: none;
+  }
+  .tb-notice-short {
+    display: inline;
+  }
+}
+@media (max-width: 720px) {
+  .tb-notice {
+    margin-left: 6px;
+    padding-left: 6px;
+    font-size: 8.5px;
+  }
+}
+
+/* The help panel's hard non-diagnostic paragraph — set apart from the ordinary
+   fine print so it is not read as more of the same. */
+.ov-fine-hard {
+  margin-top: 10px;
+  padding: 11px 13px;
+  border-left: 2px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  background: rgba(240, 180, 41, 0.05);
+  color: var(--ink-2);
+}
+.ov-fine-hard b {
+  color: var(--ink-1);
+  font-weight: 600;
+}

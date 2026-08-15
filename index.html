@@ -286,6 +286,51 @@
         </p>
       </div>
 
+      <!-- Mandatory non-diagnostic gate.
+           No close control, no backdrop dismissal, no Escape: the button is the
+           only exit and the checkbox is the only way to enable it. Sits above
+           every other overlay, including the start screen. -->
+      <div
+        id="disclaimer"
+        class="overlay disclaimer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="disclaimer-title"
+        aria-describedby="disclaimer-body"
+        hidden
+      >
+        <div class="overlay-card disclaimer-card">
+          <h2 id="disclaimer-title">Research &amp; education simulation only</h2>
+
+          <div id="disclaimer-body" class="disclaimer-body">
+            <p>
+              CONTINUUM is a literature-informed <b>simulation</b> for research and education. It models mechanical
+              and afferent concepts for exploration and teaching.
+            </p>
+            <ul class="disclaimer-nots">
+              <li>It is <b>not</b> a medical device.</li>
+              <li>It is <b>not</b> a diagnostic tool.</li>
+              <li>It is <b>not</b> a substitute for professional medical advice, diagnosis, or treatment.</li>
+              <li>It does <b>not</b> provide patient-specific clinical measurements or histological truth.</li>
+            </ul>
+            <p>
+              Microscope / receptor views are <b>schematic and model-driven</b>. Display motion may be exaggerated
+              for visibility; numeric readouts are model outputs, not lab recordings.
+            </p>
+            <p class="disclaimer-hard">Do not use CONTINUUM to make clinical decisions.</p>
+          </div>
+
+          <label class="disclaimer-ack" for="disclaimer-check">
+            <input type="checkbox" id="disclaimer-check" />
+            <span>I understand this is a simulation only and not for diagnostic or medical use.</span>
+          </label>
+
+          <button class="btn btn-primary disclaimer-go" id="disclaimer-accept" disabled aria-disabled="true">
+            I understand — enter CONTINUUM
+          </button>
+        </div>
+      </div>
+
       <!-- Hover tooltip -->
       <div id="tooltip" class="tooltip" hidden></div>
 
@@ -464,8 +509,16 @@
             A visualisation and teaching instrument for mechanical and sensory physiology. Structures are
             generated procedurally to published adult proportions, and the mechanics, viscoelastic filtering
             and rate coding model published principles qualitatively rather than reproducing any measured
-            dataset. It is not a diagnostic, clinical or treatment tool, and it does not describe any
-            individual body.
+            dataset.
+          </p>
+          <p class="ov-fine ov-fine-hard">
+            CONTINUUM is a literature-informed <b>simulation</b> for research and education. It is
+            <b>not a medical device</b>, <b>not a diagnostic tool</b>, and <b>not a substitute for professional
+            medical advice, diagnosis, or treatment</b>. It does not provide patient-specific clinical
+            measurements or histological truth, and it does not describe any individual body. Microscope and
+            receptor views are schematic and model-driven: display motion may be exaggerated for visibility, and
+            numeric readouts are model outputs rather than lab recordings. Do not use CONTINUUM to make clinical
+            decisions.
           </p>
         </div>
       </div>
