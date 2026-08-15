@@ -110,16 +110,28 @@ export const VALIDATION_ROWS = [
   {
     id: 'afferent-whole-body',
     module: 'Whole-body afferent / transmission path',
-    surface: 'sim/afferent.js, anatomy/info.js receptor descriptors, telemetry strip',
-    anchors: ['citation pending — no citation record exists in this module'],
-    target: 'Per-class constants (bestHz, tau, threshold, cvNum) given ranges, species and sources, as the micro path already has.',
-    status: 'speculative',
+    surface: 'sim/afferent.js, data/afferent_params.js, anatomy/info.js receptor descriptors, telemetry strip',
+    anchors: [
+      'TEXTBOOK_CONSENSUS_BAND / _CV / _SIZE — category labels, not references',
+      'MODEL_TUNING — 21 of 42 constants have no external anchor at all',
+    ],
+    target:
+      'Each of the 21 range-anchored constants checked against a named primary source and marked verified ' +
+      'individually. The 21 MODEL_TUNING constants cannot reach that bar — they would need a calibration this ' +
+      'product does not have.',
+    status: 'partial',
     evidence:
-      'Standard-linear-solid tissue filter with seven receptor classes. **anatomy/info.js contains zero provenance fields**: ' +
-      'the class constants are bare literals. This path is less documented than the micro path that came after it.',
+      'All 42 constants the transduction model reads now carry a unit, a biological meaning, a species field, a ' +
+      'stated range where one exists, a citation category and notes — data/afferent_params.js, with anatomy/info.js ' +
+      'reading from it rather than holding literals. Values are unchanged and frozen against a baseline that ' +
+      'tools/check-afferent-params.mjs enforces. **Verified: 0.** The honest split the table forced: 21 are ' +
+      'MODEL_TUNING (every tau, threshold and phasic) with no source and, for threshold, no physical unit at all; ' +
+      '21 sit inside a textbook-consensus band, where the *range* is the citable part and the point value is still ' +
+      'a choice nobody sourced.',
     next:
-      'Give it the literature_params treatment — a table with value, range, unit, species and citation per constant. ' +
-      'This is the largest single documentation gap in the product.',
+      'Source the 14 range-anchored records that have numeric ranges, one at a time, setting verified:true only on ' +
+      'records whose paper a human has actually read. See AFFERENT_PARAMS.md for the checklist. The MODEL_TUNING ' +
+      'group should be described as tuning in any write-up rather than quietly presented as physiology.',
   },
   {
     id: 'micro-basic',

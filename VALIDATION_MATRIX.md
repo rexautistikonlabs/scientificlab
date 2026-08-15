@@ -28,9 +28,9 @@ quietly drift away from the code it describes.
 | status | modules |
 |---|---|
 | `grounded` | 3 |
-| `partial` | 6 |
+| `partial` | 7 |
 | `novel` | 3 |
-| `speculative` | 2 |
+| `speculative` | 1 |
 | `out_of_scope_v1` | 2 |
 
 16 modules. Validated against measured data: **0**.
@@ -44,7 +44,7 @@ quietly drift away from the code it describes.
 | 1 | **Multi-scale anatomy & tensegrity visualisation** | anatomy/, gfx/, core/scales.js — the 3D view and scale ladder | citation pending — published adult proportions, no specific source recorded in code | Structure positions and proportions checked against a named anatomical reference. | `partial` | 271 structures + 1 469 receptor endings, procedurally generated, 1740 IDs with manifest hash 238ca549. Proportions are asserted in prose; no per-structure provenance field exists. | Record a reference per system, or state plainly that geometry is illustrative rather than metric. |
 | 2 | **Live mechanical / tensegrity solve** | sim/tensegrity.js — position-based dynamics, tension-only cables | citation pending — biotensegrity literature for the qualitative premise; PBD is a standard method, not a claim about tissue | Load-distribution pattern compared against a published whole-body measurement, or explicit statement that it is qualitative. | `partial` | 469 elements, 166 nodes, deterministic settle, reproducible continuity figures (plantar tension → +8.8 % calf, +12.1 % lumbar, +1.0 % cervical). Numbers are stable and self-consistent; nothing external anchors their magnitude. | Say explicitly in the README that the attenuation profile is a modelled pattern, not a measured one. |
 | 3 | **Interventions (tension, compression, restriction, shear, release)** | core/store.js TOOLS, sim/tensegrity.js interventions, right panel | citation pending | Each mode mapped to a defined tissue-mechanical change with a source, rather than a tuned solver effect. | `partial` | Five modes applied through one solver path with magnitude and radius. Directions are plausible and internally consistent. | Document what each mode does to the solver in one line each, the way METRICS.md does for the metrics. |
-| 4 | **Whole-body afferent / transmission path** | sim/afferent.js, anatomy/info.js receptor descriptors, telemetry strip | citation pending — no citation record exists in this module | Per-class constants (bestHz, tau, threshold, cvNum) given ranges, species and sources, as the micro path already has. | `speculative` | Standard-linear-solid tissue filter with seven receptor classes. **anatomy/info.js contains zero provenance fields**: the class constants are bare literals. This path is less documented than the micro path that came after it. | Give it the literature_params treatment — a table with value, range, unit, species and citation per constant. This is the largest single documentation gap in the product. |
+| 4 | **Whole-body afferent / transmission path** | sim/afferent.js, data/afferent_params.js, anatomy/info.js receptor descriptors, telemetry strip | TEXTBOOK_CONSENSUS_BAND / _CV / _SIZE — category labels, not references; MODEL_TUNING — 21 of 42 constants have no external anchor at all | Each of the 21 range-anchored constants checked against a named primary source and marked verified individually. The 21 MODEL_TUNING constants cannot reach that bar — they would need a calibration this product does not have. | `partial` | All 42 constants the transduction model reads now carry a unit, a biological meaning, a species field, a stated range where one exists, a citation category and notes — data/afferent_params.js, with anatomy/info.js reading from it rather than holding literals. Values are unchanged and frozen against a baseline that tools/check-afferent-params.mjs enforces. **Verified: 0.** The honest split the table forced: 21 are MODEL_TUNING (every tau, threshold and phasic) with no source and, for threshold, no physical unit at all; 21 sit inside a textbook-consensus band, where the *range* is the citable part and the point value is still a choice nobody sourced. | Source the 14 range-anchored records that have numeric ranges, one at a time, setting verified:true only on records whose paper a human has actually read. See AFFERENT_PARAMS.md for the checklist. The MODEL_TUNING group should be described as tuning in any write-up rather than quietly presented as physiology. |
 | 5 | **Microscope Basic spindle drive (default)** | sim/spindle.js iaRate(), Microscope panel → Drive model → Basic | prochazka1999; prochazka1998; matthews1972; hunt1990 | Parameters checked against the primary sources and marked verified. | `partial` | r = r₀ + k_v·[v]₊^p + k_L·a(t)·ΔL — a citable model *shape*. All parameter records carry verified:false and null DOIs. Direction verified in-repo: rate rises with length, adaptation relaxes to a floor and recovers. | A human checks each of the eight parameters against its paper and sets verified:true individually. |
 | 6 | **Microscope Extended drive (history, tension/yank-style, γ)** | sim/spindle_extended.js, Microscope panel → Drive model → Extended | blum2020 — doi:10.7554/eLife.55177, inspiration for qualitative targets only | Qualitative targets reproduced: history dependence recovering over seconds, and a dynamic response that grows with stretch velocity. Never a numeric match to any figure. | `partial` | Both qualitative targets met in-repo: second-stretch ratio 0.57 at 0.5 s recovering to 0.98 at 10 s, monotone in the gap; early burst 98→208 Hz across a 2–16.7 mm/s ramp series with the plateau moving 1 %. All 14 parameters verified:false — the citation key marks the *phenomenon*, not the value, and none of the values comes from the paper. | Keep the wording as inspiration. Any move beyond partial needs a digitised comparison series, which this product does not have and should not fabricate. |
 | 7 | **Spike timing & conduction delay** | sim/spindle.js — exact integrate-and-fire, conductionDelay() | burke_gandevia (conduction velocity); NEEDS_PRIMARY_SOURCE (path length, synaptic delay) | Path length and synaptic delay given real sources; conduction velocity range confirmed. | `partial` | Integrate-and-fire is exact: constant drive gives ISI = 1/r with CV = 0, verified offline. Delay arithmetic verified across five path-length and velocity conditions. Two of its three parameters carry the placeholder key NEEDS_PRIMARY_SOURCE. | Source the path length and synaptic delay, or state a defended assumption for each. |
@@ -62,14 +62,19 @@ quietly drift away from the code it describes.
 
 ## The three findings worth reading twice
 
-**The whole-body afferent path is the least documented thing in the product.**
-`src/anatomy/info.js` contains **zero** provenance fields: the per-class
-constants that drive every receptor in the telemetry strip — `bestHz`, `tau`,
-`threshold`, `cvNum` — are bare literals with no range, no species and no
-source. The micro path built later has a full parameter table with all four.
-The older, more visible module is the weaker one, and it is marked
-`speculative` for that reason. Giving it the `literature_params` treatment is
-the single highest-value documentation task outstanding.
+**The whole-body afferent path now has provenance — and the provenance is not
+flattering.** `src/data/afferent_params.js` gives all 42 constants the
+transduction model reads a unit, a meaning, a species field, a range where one
+exists and a citation category, with `anatomy/info.js` reading from it instead
+of holding literals. Writing that down forced a split that the bare literals had
+hidden: **21 of 42 are `MODEL_TUNING`** — every `tau`, `threshold` and `phasic` —
+chosen so each class behaves as its adaptation label describes, with no source,
+and in `threshold`'s case no physical unit at all. The other 21 sit inside a
+textbook-consensus band, where the *range* is the citable part and the point
+value inside it is still a choice nobody sourced. The row moved
+`speculative` → `partial` because the structure now exists; **verified is still
+0**, and the tuning group cannot reach a source at all without a calibration
+this product does not have.
 
 **The perturbation model is the load-bearing assumption.** Every experiment
 result depends on `transmission = 1/(1 + k_trans·m)` and a lag whose τ grows

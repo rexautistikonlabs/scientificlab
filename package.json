@@ -14,7 +14,8 @@
     "preview": "vite preview --port 4180",
     "check:validation": "node tools/check-validation-matrix.mjs",
     "check:disclaimer": "node tools/check-disclaimer.mjs",
-    "check": "npm run check:disclaimer && npm run check:validation"
+    "check": "npm run check:disclaimer && npm run check:afferent && npm run check:validation",
+    "check:afferent": "node tools/check-afferent-params.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"

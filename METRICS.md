@@ -51,6 +51,11 @@ This is the serious surface. It is still a model output, not a recording, and
 > external anchor for the weightings. That is not a criticism of them; it is what
 > a composite is.
 
+The per-class constants these composites are built from — `bestHz`, `tau`,
+`threshold`, `phasic`, `cvNum` — carry their provenance in
+`src/data/afferent_params.js`, and half of them are explicitly model tuning
+rather than sourced values. `AFFERENT_PARAMS.md` has the breakdown.
+
 ## Layer C — composite summaries
 
 Each of these is real arithmetic over real state. Each also compresses something

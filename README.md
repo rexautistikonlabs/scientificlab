@@ -117,6 +117,7 @@ Because identity is the contract, everything downstream composes without engine 
 | `core/` | State store, scale-aware orbit controls, multi-scale manager |
 | `core/quality.js` | Tier table, hardware detection, adaptive quality controller |
 | `platform/layers.js` | The A/B/C layer taxonomy and every output's definition — the source of truth for `METRICS.md` |
+| `data/afferent_params.js` | Provenance for the 42 whole-body afferent constants: unit, meaning, range, species, citation category. See `AFFERENT_PARAMS.md` |
 | `sim/experiment.js` | Controlled experiments: baseline vs perturbed, same protocol; the perturbation model |
 | `platform/ids.js` | ID derivation, aliases, region classification, manifest signature |
 | `platform/properties.js` | Base properties, live state, datasets, parameter sets, subject data, provenance |
@@ -545,7 +546,7 @@ anchor, a validation target, and an honest status — `grounded`, `partial`,
 measured data**, because this product holds no measured series, and the enum has
 no value that would let a row claim otherwise.
 
-Current inventory: 16 modules — 3 grounded, 6 partial, 3 novel, 2 speculative,
+Current inventory: 16 modules — 3 grounded, 7 partial, 3 novel, 1 speculative,
 2 out of scope for v1. `CONTINUUM.validation.summary()` returns the counts, and
 `node tools/check-validation-matrix.mjs` fails the build if the document and
 `src/platform/validation.js` stop agreeing.

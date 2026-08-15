@@ -33,6 +33,7 @@ import { P as P_MICRO, listParams, setParam, BLUM_2020 } from './data/micro/lite
 import { runExperiment as runMicroExperiment, summarise as summariseExperiment, PERTURBATIONS, perturbationTerms } from './sim/experiment.js';
 import { LAYERS as MODEL_LAYERS, OUTPUTS as MODEL_OUTPUTS, layerOf, EXPERIMENT_CAPTION } from './platform/layers.js';
 import { VALIDATION_ROWS, STATUS as VALIDATION_STATUS, summary as validationSummary, row as validationRow, withStatus, needsSourcing } from './platform/validation.js';
+import { listAfferentParams, paramsForClass, provenanceSummary, rangeViolations, AP } from './data/afferent_params.js';
 import { RECEPTORS } from './anatomy/info.js';
 import { IdRegistry } from './platform/ids.js';
 import { PropertyStore, registerReferenceData } from './platform/properties.js';
@@ -1360,6 +1361,17 @@ async function main() {
       status: () => JSON.parse(JSON.stringify(VALIDATION_STATUS)),
       withStatus: (s) => JSON.parse(JSON.stringify(withStatus(s))),
       needsSourcing: () => needsSourcing().map((r) => ({ id: r.id, module: r.module, status: r.status, next: r.next })),
+    },
+
+    /* Provenance for the 42 constants the whole-body afferent model reads.
+       See AFFERENT_PARAMS.md for how to verify a row — one at a time, and only
+       after reading the source. */
+    afferentParams: {
+      all: () => listAfferentParams(),
+      forClass: (c) => paramsForClass(c),
+      get: (c, p) => AP(c, p),
+      summary: () => provenanceSummary(),
+      rangeViolations: () => rangeViolations(),
     },
 
     /* Which layer any named output belongs to, and what it actually is. */
