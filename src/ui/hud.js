@@ -519,6 +519,7 @@ export class Hud {
     this.microPanel = el('#micro');
     this.microRoi = el('#micro-roi');
     this.microCanvas = el('#micro-raster-canvas');
+    this.microCite = el('#micro-cite');
     this.microCtx = this.microCanvas.getContext('2d');
     const host = el('#micro-rows');
     host.innerHTML = '';
@@ -532,6 +533,12 @@ export class Hud {
       ['adapt', 'adaptation'],
       ['delay', 'delay'],
       ['flight', 'pulse flight'],
+      /* Extended-model rows. Hidden while Basic is running rather than shown
+         empty: a blank "tension" row invites the reader to wonder what broke. */
+      ['tension', 'tension'],
+      ['yank', 'yank'],
+      ['avail', 'availability'],
+      ['gamma', 'γ static / dyn'],
     ];
     for (const [id, label] of rows) {
       host.appendChild(make('dt', '', label));
@@ -584,6 +591,26 @@ export class Hud {
        would read the drawn pulse as the model's timing. */
     set('delay', `${r.conductionDelayMs.toFixed(2)} ms`);
     set('flight', `drawn ×${PULSE_TIME_DILATION} slower`);
+
+    /* The Extended block, and the citation beside it, appear only while the
+       Extended model is the one running. A reference printed next to a law it
+       did not inspire is misattribution pointing the other way. */
+    const ext = r.model === 'extended';
+    for (const id of ['tension', 'yank', 'avail', 'gamma']) {
+      const dd = this.microRows.get(id);
+      const dt = dd?.previousElementSibling;
+      if (dd) dd.hidden = !ext;
+      if (dt) dt.hidden = !ext;
+    }
+    if (this.microCite) this.microCite.hidden = !ext;
+    if (ext) {
+      set('tension', `${r.tension?.toFixed(2) ?? '—'} u`, (r.tension ?? 0) > 0);
+      set('yank', `${r.yank >= 0 ? '+' : ''}${r.yank?.toFixed(1) ?? '—'} u/s`, (r.yank ?? 0) > 0);
+      set('avail', `${((r.availability ?? 1) * 100).toFixed(0)} %`, (r.availability ?? 1) < 0.75);
+      set('gamma', `${Math.round((r.gammaStatic ?? 0) * 100)} / ${Math.round((r.gammaDynamic ?? 0) * 100)} %`);
+    }
+    if (this.microRoi && r.protocol) this.microRoi.textContent = `${r.label} · ${r.protocol}`;
+
     this._drawRaster(spindle);
   }
 

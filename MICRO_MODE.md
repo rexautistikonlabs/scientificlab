@@ -7,6 +7,21 @@ resembles a slide.
 
 ---
 
+## Two drive models
+
+| | **Basic (legacy)** — default | **Extended** — opt-in |
+|---|---|---|
+| drive | length and velocity | intrafusal tension proxy and its rate of change (yank) |
+| history | none | cross-bridge availability, recovering over seconds |
+| fusimotor | none | schematic static and dynamic γ-like drive |
+| channels | one | bag-like and chain-like, combined by an occlusion rule |
+| verified figures below | yes | separately measured, see [Extended model](#extended-model) |
+
+Basic remains the product default. Everything measured in the original
+verification of this mode refers to Basic, and switching models is an explicit
+choice in the Microscope panel. The Extended model is documented in its own
+section at the end of this file.
+
 ## What is and is not claimed
 
 **Claimed.** The deformation of the drawn receptor, the firing rate of its
@@ -28,6 +43,15 @@ The caption is fixed on screen for as long as the mode is active:
 
 > Literature-constrained schematic simulation of receptor mechanics and afferent
 > timing. Not histological photography, not patient data, not diagnostic.
+
+The Extended model is **simplified and educational**, inspired by
+Blum KP et al. (2020) *eLife* 9:e55177,
+[doi:10.7554/eLife.55177](https://doi.org/10.7554/eLife.55177). It is **not a
+reproduction** of that work, not a port of its code, and not validated against
+its figures or against any recording. No code, figure or extended text from the
+paper has been used. What is taken from it is the *idea* of three phenomena
+worth showing; the equations here were written for this product and any
+quantitative agreement would be a coincidence.
 
 The parameter citations in `src/data/micro/literature_params.js` **have not been
 verified against primary sources.** Every `citation` block carries
@@ -379,3 +403,154 @@ Full-body micro detail; Pacinian and Golgi mechanical packs (the hooks exist —
 `MICRO_ROIS` and the receptor-agnostic downstream stages — but no drive
 functions); photoreal textures or EM-derived meshes; any change to backend,
 billing or auth.
+
+
+---
+
+## Extended model
+
+Opt-in from the Microscope panel: **Drive model → Extended**. Implemented in
+`src/sim/spindle_extended.js`. Simplified and educational, inspired by Blum KP
+et al. (2020) *eLife* 9:e55177, [doi:10.7554/eLife.55177](https://doi.org/10.7554/eLife.55177)
+— see the honesty statement above for what that does and does not mean.
+
+Everything downstream of the drive is **identical** to Basic: the same substep
+integrator, the same exact integrate-and-fire, the same conduction stamp, the
+same pulse renderer. Extended changes what drives the ending, not how the ending
+speaks.
+
+### Equations
+
+Two mechanical elements in parallel, both driven by the same length `x` (mm from
+the settled reference) and velocity `v` (mm/s):
+
+```
+passive       T_pe  = k_pe · [x]₊  +  b_if · v
+short-range   T_srs = k_srs · a · s
+              T     = T_pe + T_srs
+```
+
+`s` is the deflection of the short-range bond, clipped to ±x_y. While the bond
+holds it stretches with the muscle; past x_y it slides and stops contributing.
+That clip is what makes the onset of a stretch more forceful than its
+continuation.
+
+`a` ∈ [0,1] is cross-bridge availability, and it is where the history lives:
+
+```
+da/dt = (1 − a)/τ_rec  −  a · |v| / x_slip
+```
+
+Recovery is first-order in **time**; breakdown is first-order in **distance
+travelled**. Sitting still restores the receptor over seconds; moving depletes
+it in millimetres.
+
+Drive is tension and its own derivative:
+
+```
+Y = dT/dt          (low-passed at τ_Y)
+r = r₀ + g_T · [T]₊ + g_Y · [Y]₊^p_y      clamped to [0, r_max]
+```
+
+Two channels run the same equations with different emphasis — bag-like weighted
+toward yank, chain-like toward sustained tension — and combine by:
+
+```
+r = max(r_bag, r_chain) + k_occ · min(r_bag, r_chain)
+```
+
+At `k_occ = 0` the louder channel takes the axon outright, which is the classic
+occlusion observation; at 1 they simply sum. Static γ-like drive raises the
+chain channel's bias and gain; dynamic γ-like drive raises the bag channel's
+yank sensitivity and, at half that weight, the short-range stiffness.
+
+### Verified behaviour
+
+**History** — two identical 2 mm stretches, varying the gap (τ_rec = 4 s):
+
+| gap | peak 2 / peak 1 |
+|---|---|
+| 0.5 s | 0.57 |
+| 1 s | 0.64 |
+| 2 s | 0.74 |
+| 5 s | 0.89 |
+| 10 s | 0.98 |
+| 20 s | 1.01 |
+
+Monotone in the gap. Basic produces no such effect at all.
+
+**Yank** — same 2 mm amplitude, varying ramp speed:
+
+| ramp | speed | early burst | plateau |
+|---|---|---|---|
+| 1000 ms | 2.0 mm/s | 98 Hz | 57.5 Hz |
+| 400 ms | 5.0 mm/s | 136 Hz | 57.1 Hz |
+| 200 ms | 10.0 mm/s | 176 Hz | 56.9 Hz |
+| 120 ms | 16.7 mm/s | 208 Hz | 56.9 Hz |
+
+The burst more than doubles; the plateau moves by 1 %. The stretch being held is
+the same, the way it was reached is not.
+
+**Fusimotor** — 2 mm, 300 ms ramp, full drive:
+
+| drive | quiet baseline | burst | plateau |
+|---|---|---|---|
+| none | 34 Hz | 152 Hz | 57 Hz |
+| static γ = 1 | 57 Hz | 164 Hz | 97 Hz |
+| dynamic γ = 1 | 34 Hz | 292 Hz | 69 Hz |
+
+Static lifts the plateau by 40 and the burst by 13; dynamic the reverse, 141 and
+12. Defaults are zero for both.
+
+**Live vs offline** — running `rampHold` on the bound unit and comparing against
+`simulate()` of the same protocol agrees on spike count to ~4 %, the residual
+being the coarser substep the live path uses at low frame rate.
+
+### Implemented vs still missing, against the paper
+
+| | status |
+|---|---|
+| force-like drive | **simplified proxy** — a two-element tension model in arbitrary units, not a muscle model |
+| yank-like drive | **implemented** — low-passed dT/dt with a compressive exponent |
+| history dependence | **implemented** — availability with time-recovery and distance-breakdown |
+| short-range stiffness | **implemented** — schematically, as a clipped bond in parallel |
+| fusimotor drive | **schematic** — two scalars, not modelled motor units |
+| bag / chain fibre roles | **schematic** — two channels differing in gain emphasis, not distinct fibre mechanics |
+| occlusion | **schematic** — one parameter over `max` and `min` |
+| **still missing** | multiscale muscle mechanics: sarcomere-level cross-bridge populations, distributed fibre recruitment, the actual force-generating machinery the paper models |
+| **still missing** | any quantitative fit to recorded afferents; no validation dataset exists in this product |
+| **still missing** | Ia/II distinction, alpha-gamma co-activation, whole-muscle geometry and pennation |
+| **still missing** | temperature, fatigue, and the dependence of history on preceding *contraction* rather than preceding stretch |
+
+### A finding worth recording
+
+`intrafusalDamping` defaults to **zero**, and that is a result rather than a
+preference. A velocity term inside a quantity that is then differentiated turns
+every step in velocity into a delta: at ramp onset the artefact was roughly an
+order of magnitude larger than the entire yank signal, and it buried the history
+effect completely — the second-stretch ratio sat at 0.976 with a *ten-second*
+gap and 0.970 with a half-second one, i.e. no effect and slightly backwards.
+Zeroing the damping term immediately produced 0.57 / 0.98. The parameter is left
+tunable so the failure can be reproduced.
+
+### Saturation
+
+At the Basic model's length gain (200 spikes/s per mm) a 3 mm stretch computes to
+650 spikes/s and clamps at the 300 Hz ceiling for the whole stretch, erasing the
+dynamic response. That gain is correct for this ROI's sub-millimetre excursion
+and wrong for a multi-millimetre teaching scenario, so the Extended gains are an
+order of magnitude lower: at 3 mm it reports a 176 Hz burst over a 60 Hz plateau.
+Amplitude and gain have to be chosen together. See `SCENARIOS.md`.
+
+### Parameters
+
+Fourteen new records in `src/data/micro/literature_params.js`, all carrying
+citation key `blum2020` and `verified: false`: `srsYieldDisplacement`, `srsGain`,
+`srsRecoveryTau`, `srsSlipDistance`, `passiveStiffness`, `intrafusalDamping`,
+`tensionGain`, `yankGain`, `yankExponent`, `yankTau`, `gammaStaticGain`,
+`gammaDynamicGain`, `gammaStaticBias`, `occlusionFactor`, `chainChannelShare`.
+
+The key is attached to the **phenomena** these constants parameterise, not to the
+values. None of them is taken from the paper. They are educational values chosen
+so the qualitative behaviour is visible at this product's scale, and a human must
+decide whether each is defensible before any of it is published.

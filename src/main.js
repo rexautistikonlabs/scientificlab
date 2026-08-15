@@ -28,7 +28,8 @@ import { buildBody } from './anatomy/index.js';
 import { setReceptorDensity } from './anatomy/receptors.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
 import { buildSpindle, MICRO_ROIS } from './sim/spindle.js';
-import { P as P_MICRO, listParams, setParam } from './data/micro/literature_params.js';
+import { PROTOCOLS as MICRO_PROTOCOLS, simulateProtocol, peaksPerRepetition, ExtendedDrive } from './sim/spindle_extended.js';
+import { P as P_MICRO, listParams, setParam, BLUM_2020 } from './data/micro/literature_params.js';
 import { RECEPTORS } from './anatomy/info.js';
 import { IdRegistry } from './platform/ids.js';
 import { PropertyStore, registerReferenceData } from './platform/properties.js';
@@ -376,9 +377,37 @@ async function main() {
      history start clean — carrying them across would mean the first spikes after
      a change described the previous muscle. */
   store.on('micro', (k) => {
+    if (k === 'model' && microSpindle) {
+      microSpindle.setModel(store.micro.model);
+      hud.toast(
+        store.micro.model === 'extended'
+          ? 'Microscope drive: <b>Extended</b> — tension and yank with stretch history. Simplified educational model, inspired by Blum et al. 2020.'
+          : 'Microscope drive: <b>Basic</b> — the product default, firing from length and velocity.',
+        5200
+      );
+    }
+    if ((k === 'gammaStatic' || k === 'gammaDynamic') && microSpindle) {
+      microSpindle.setGamma(k === 'gammaStatic' ? 'static' : 'dynamic', store.micro[k]);
+      if (store.micro.model !== 'extended' && store.micro[k] > 0) {
+        hud.toast('Fusimotor drive only affects the <b>Extended</b> model', 3400);
+      }
+    }
+    if (k === 'scenario' && microSpindle) {
+      const spec = store.micro.scenario ? MICRO_PROTOCOLS[store.micro.scenario] : null;
+      if (spec) {
+        microSpindle.startProtocol(spec);
+        hud.toast(`Scenario <b>${spec.name}</b> — ${spec.blurb}`, 5200);
+      } else {
+        microSpindle.stopProtocol();
+        hud.toast('Back to the <b>live body</b> length', 2600);
+      }
+    }
     if (k === 'roi') {
       const next = buildSpindle(solver, store.micro.roi);
       if (next) {
+        next.setModel(store.micro.model);
+        next.setGamma('static', store.micro.gammaStatic);
+        next.setGamma('dynamic', store.micro.gammaDynamic);
         scales.spindle = next;
         microSpindle = next;
         hud.toast(`Microscope region: <b>${next.label}</b>`, 2600);
@@ -1281,6 +1310,25 @@ async function main() {
       setParam: (id, v) => setParam(id, v),
       readout: () => (microSpindle ? microSpindle.readout() : null),
       spikes: (window_s = 1) => (microSpindle ? microSpindle.recent(window_s) : []),
+
+      /* ---- Extended model ----
+         Simplified and educational, inspired by Blum et al. 2020
+         (doi:10.7554/eLife.55177). Not a reproduction of that work.
+
+         `simulate` is the headline hook: it runs a protocol through the same
+         drive the interactive scenario uses, offline and at full temporal
+         resolution, and hands back the trace. That is how the history and yank
+         checks are made — a living body is never exactly the same stimulus
+         twice, which is fine for watching and useless for measuring. */
+      setModel: (m) => store.setMicro('model', m === 'extended' ? 'extended' : 'basic'),
+      setGamma: (kind, v) => store.setMicro(kind === 'dynamic' ? 'gammaDynamic' : 'gammaStatic', v),
+      protocols: () => Object.values(MICRO_PROTOCOLS).map((p) => ({ ...p })),
+      runScenario: (id) => store.setMicro('scenario', id && MICRO_PROTOCOLS[id] ? id : null),
+      simulate: (spec, opts) =>
+        simulateProtocol(typeof spec === 'string' ? MICRO_PROTOCOLS[spec] : spec, opts),
+      peaks: (spec, trace) => peaksPerRepetition(typeof spec === 'string' ? MICRO_PROTOCOLS[spec] : spec, trace),
+      newDrive: () => new ExtendedDrive(),
+      citation: () => ({ ...BLUM_2020 }),
     },
   };
 }

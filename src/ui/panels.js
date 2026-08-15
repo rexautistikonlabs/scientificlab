@@ -10,6 +10,7 @@ import { CHAINS } from '../anatomy/chains.js';
 import { RECEPTORS, RECEPTOR_ORDER, describe } from '../anatomy/info.js';
 import { entitlements, CAPABILITIES } from '../platform/entitlements.js';
 import { MICRO_ROIS } from '../sim/spindle.js';
+import { PROTOCOLS } from '../sim/spindle_extended.js';
 import { MICRO_PARAMS, setParam } from '../data/micro/literature_params.js';
 
 export class Panels {
@@ -406,6 +407,72 @@ export class Panels {
       cap: 'scale.deep',
     });
 
+    /* ---- drive model ----
+       Basic is the default and stays it: the length-and-velocity law this ROI
+       was verified against, and the one every earlier acceptance figure refers
+       to. Extended is opt-in and says so. */
+    this._segmented(host, {
+      label: 'Drive model',
+      options: [
+        { id: 'basic', name: 'Basic' },
+        { id: 'extended', name: 'Extended' },
+      ],
+      value: m.model,
+      onPick: (v) => this.store.setMicro('model', v),
+      title:
+        'Basic (legacy): firing from length and velocity — the product default.\n' +
+        'Extended: firing from an intrafusal tension proxy and its rate of change, with stretch history and ' +
+        'optional fusimotor drive. Simplified and educational, inspired by Blum et al. 2020 (doi:10.7554/eLife.55177). ' +
+        'Not a reproduction of that work and not validated against it.',
+      cap: 'scale.deep',
+    });
+
+    /* ---- fusimotor ----
+       Defaults at zero, deliberately: a spindle with no fusimotor drive is the
+       honest starting point, and every earlier figure was measured there. */
+    this._microGammaStatic = this._slider(host, {
+      label: 'Static γ-like drive',
+      min: 0,
+      max: 100,
+      step: 1,
+      value: Math.round(m.gammaStatic * 100),
+      format: (v) => (v === 0 ? 'off' : `${v} %`),
+      onInput: (v) => this.store.setMicro('gammaStatic', v / 100),
+      title:
+        'Schematic static fusimotor drive. Raises baseline discharge and sustained-tension sensitivity through the ' +
+        'chain-like channel. Extended model only.',
+      cap: 'scale.deep',
+    });
+
+    this._microGammaDynamic = this._slider(host, {
+      label: 'Dynamic γ-like drive',
+      min: 0,
+      max: 100,
+      step: 1,
+      value: Math.round(m.gammaDynamic * 100),
+      format: (v) => (v === 0 ? 'off' : `${v} %`),
+      onInput: (v) => this.store.setMicro('gammaDynamic', v / 100),
+      title:
+        'Schematic dynamic fusimotor drive. Stiffens the short-range element and raises yank sensitivity through ' +
+        'the bag-like channel, so the response to how fast a stretch arrives grows. Extended model only.',
+      cap: 'scale.deep',
+    });
+
+    /* ---- scenarios ----
+       A protocol imposes a length trajectory on the ending, so a demonstration
+       is exactly what it says it is. The living body is never exactly anything
+       twice, which is fine for watching and useless for measuring. */
+    this._segmented(host, {
+      label: 'Scenario',
+      options: [{ id: 'live', name: 'Live body' }, ...Object.values(PROTOCOLS).map((p) => ({ id: p.id, name: p.name.split(' (')[0] }))],
+      value: m.scenario || 'live',
+      onPick: (v) => this.store.setMicro('scenario', v === 'live' ? null : v),
+      title:
+        'Live body reads the solved element length. The others impose a ramp–hold–release trajectory so the ' +
+        'response can be measured rather than watched. Amplitudes are educational, not taken from any paper.',
+      cap: 'scale.deep',
+    });
+
     /* Two parameters are exposed for tuning because they are the two the
        acceptance checks turn on: move either and the pulses visibly arrive
        sooner or later. Both are clamped to their published range by the
@@ -434,7 +501,10 @@ export class Panels {
     const note = make('p', 'pnote');
     note.innerHTML =
       'Parameters are read from the literature table and clamped to their published ranges. ' +
-      '<b>Citations are unverified placeholders</b> — a human must check each against its primary source.';
+      '<b>Citations are unverified placeholders</b> — a human must check each against its primary source. ' +
+      'The Extended model is a simplified educational sketch inspired by ' +
+      '<a href="https://doi.org/10.7554/eLife.55177" target="_blank" rel="noopener noreferrer">Blum et al. 2020</a>, ' +
+      'not a reproduction of it.';
     host.appendChild(note);
   }
 

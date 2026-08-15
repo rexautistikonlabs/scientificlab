@@ -110,6 +110,8 @@ Because identity is the contract, everything downstream composes without engine 
 | `sim/tensegrity.js` | Node/cable/strut network, position-based dynamics, tension-only cables, resting-baseline calibration |
 | `sim/physiology.js` | Cardiac and respiratory waveforms, rib kinematics, visceral motility, fluid transport |
 | `sim/afferent.js` | Standard-linear-solid tissue filter, per-class transduction, rate coding, fidelity/latency/bandwidth |
+| `sim/spindle.js` | One muscle spindle bound to a network element: kinematics, drive, exact integrate-and-fire, conduction |
+| `sim/spindle_extended.js` | Optional Extended drive: history, tension/yank, fusimotor, scenario protocols. See `MICRO_MODE.md` |
 | `anatomy/` | Procedural geometry for eight systems + receptor fields + receptor micro-anatomy |
 | `gfx/` | Shared tissue shader, signal streams, network overlay, post pipeline |
 | `core/` | State store, scale-aware orbit controls, multi-scale manager |
@@ -532,6 +534,36 @@ capability and never touches a feature. To make it real:
 Nothing else changes. The three provider buttons, the plan cards, the cancel-at-period-end behaviour
 and the licence-key path are already wired to that shape. Offline and institutional seats keep the
 key path, which resolves to the same claim with `source: 'licence-key'`.
+
+## Third-party scientific inspiration
+
+The Microscope mode's optional **Extended** drive model is a simplified,
+educational sketch inspired by:
+
+> Blum KP, Horslen MG, Ting LH, et al. (2020) *Diverse and complex muscle spindle
+> afferent firing properties emerge from multiscale muscle mechanics.*
+> eLife 9:e55177. [doi:10.7554/eLife.55177](https://doi.org/10.7554/eLife.55177)
+
+What is taken from that work is the **idea** of three phenomena worth showing: that
+a Ia afferent's drive tracks intrafusal force and the rate of change of that force
+rather than length and velocity alone; that a recent stretch leaves the receptor
+less responsive to the next one, recovering over seconds; and that fusimotor drive
+changes what the ending reports.
+
+What is **not** taken from it: any code, figure, dataset, parameter value or
+extended text. The equations in `src/sim/spindle_extended.js` were written for
+this product. It is **not a reproduction** of that work, is not validated against
+its figures or against any recording, and no quantitative agreement is claimed —
+any would be a coincidence. The fourteen parameters carrying the citation key
+`blum2020` are educational values chosen so the behaviour is visible at this
+product's scale; the key marks the *phenomenon*, not the number, and every record
+is `verified: false` until a human checks it.
+
+The **Basic** drive model remains the product default. Extended is an explicit
+choice in the Microscope panel, is labelled there, and carries the DOI beside the
+read-out whenever it is running. See `MICRO_MODE.md` for equations and an
+implemented-versus-missing table, and `SCENARIOS.md` for how to run the
+demonstrations.
 
 ## Scope
 

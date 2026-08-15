@@ -2810,3 +2810,22 @@ input[type='email']:focus {
     flex: 1 1 auto;
   }
 }
+
+/* Attribution for the Extended micro model. Sits under the honesty caption,
+   quieter than it: the caption is about what the whole mode is, this is about
+   where one optional law came from. */
+.micro-cite {
+  margin: 6px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.micro-cite a {
+  color: var(--cyan-dim);
+  text-decoration: underline;
+}
+.micro-cite a:hover {
+  color: var(--cyan);
+}

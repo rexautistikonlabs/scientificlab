@@ -243,6 +243,14 @@ class Store extends Emitter {
       roi: 'suboccipital',
       /** damp gross body motion, so a millimetre-scale subject holds still */
       steady: true,
+      /* ---- Extended model ----
+         'basic' is the shipped default and stays the default: the length-and-
+         velocity law this ROI was verified against. 'extended' is opt-in. */
+      model: 'basic',
+      gammaStatic: 0,
+      gammaDynamic: 0,
+      /** id of the scenario protocol to run, or null for live body length */
+      scenario: null,
     };
 
     this.physio = {

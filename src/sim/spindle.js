@@ -46,6 +46,7 @@
    ============================================================ */
 
 import { P } from '../data/micro/literature_params.js';
+import { ExtendedDrive, protocolLength, protocolDuration } from './spindle_extended.js';
 
 /** Fixed integration step for the spike generator, seconds. */
 export const SPIKE_DT = 1 / 1000;
@@ -184,6 +185,24 @@ export class SpindleUnit {
     this.delay = conductionDelay(); // s
     this.spikeCount = 0;
 
+    /* ---- model selection ----
+       'basic' is the product default and is the law this ROI shipped with:
+       rate from length and velocity directly. 'extended' routes the same length
+       through an intrafusal tension proxy with history, and adds fusimotor
+       drive. Switching resets the extended state, because carrying a
+       cross-bridge history across a model change would mean the first seconds
+       after the switch described a mechanism that was not running. */
+    this.model = 'basic';
+    this.gamma = { static: 0, dynamic: 0 };
+    this.extended = new ExtendedDrive();
+
+    /* Optional imposed length trajectory. When a scenario is running the unit
+       reads it instead of the solver, so a protocol is exactly what it says it
+       is — the living body is never exactly anything twice, and the history
+       measurement in particular needs a repeatable stimulus. */
+    this.protocol = null;
+    this.protocolT = 0;
+
     this._phase = 0;
     this._prevL = this.L0;
     this._t = 0; // model clock, seconds
@@ -226,7 +245,19 @@ export class SpindleUnit {
   step(dt) {
     if (!this.resolved || !(dt > 0)) return;
 
-    const L = this.solver.eLen[this.element];
+    /* Length comes from the solve, unless a scenario is imposing one. */
+    let L;
+    if (this.protocol) {
+      this.protocolT += dt;
+      if (this.protocolT > protocolDuration(this.protocol) + this.protocol.tailS) {
+        this.stopProtocol();
+        L = this.solver.eLen[this.element];
+      } else {
+        L = this.L0 + protocolLength(this.protocol, this.protocolT) * 1e-3; // mm → m
+      }
+    } else {
+      L = this.solver.eLen[this.element];
+    }
     const prevL = this._prevL;
     this._prevL = L;
 
@@ -245,7 +276,14 @@ export class SpindleUnit {
       const dLk = Lk - this.L0;
 
       this.adapt = stepAdaptation(this.adapt, dLk * 1000, h);
-      const r = iaRate(dLk * 1000, frameVel * 1000, this.adapt);
+      /* One line is the whole difference between the two models. Everything
+         downstream — the phase accumulator, the emission, the conduction stamp,
+         the drawn pulses — is identical, which is the point: the Extended work
+         changes what drives the ending, not how the ending speaks. */
+      const r =
+        this.model === 'extended'
+          ? this.extended.step(dLk * 1000, frameVel * 1000, h, this.gamma)
+          : iaRate(dLk * 1000, frameVel * 1000, this.adapt);
 
       /* Exact integrate-and-fire. Phase advances at r·h and emits on every unit
          crossing, so a rate of zero produces silence rather than a stalled
@@ -276,10 +314,50 @@ export class SpindleUnit {
     this.dL = L - this.L0;
     this.strain = this.dL * invL0;
     this.velocity = frameVel;
-    this.rate = iaRate(this.dL * 1000, frameVel * 1000, this.adapt);
+    this.rate = this.model === 'extended' ? this.extended.rate : iaRate(this.dL * 1000, frameVel * 1000, this.adapt);
     // a displayed rate needs to be readable, not instantaneous
     this.rateMean += (this.rate - this.rateMean) * Math.min(1, dt * 6);
     this.delay = conductionDelay();
+  }
+
+  /**
+   * Switch drive model. Resets the extended mechanical history so the first
+   * seconds after a switch are not describing a mechanism that was not running.
+   */
+  setModel(model) {
+    const next = model === 'extended' ? 'extended' : 'basic';
+    if (next === this.model) return this.model;
+    this.model = next;
+    this.extended.reset();
+    return this.model;
+  }
+
+  setGamma(kind, value) {
+    const v = Math.min(1, Math.max(0, +value || 0));
+    if (kind === 'static' || kind === 'dynamic') this.gamma[kind] = v;
+    return this.gamma;
+  }
+
+  /**
+   * Impose a length trajectory for `spec`, then hand control back to the solver.
+   * `tailS` keeps the unit on the imposed (resting) length for a moment after the
+   * protocol ends, so the return to live length is not itself a step stretch.
+   */
+  startProtocol(spec) {
+    if (!spec) return false;
+    this.protocol = { tailS: 1.5, ...spec };
+    this.protocolT = 0;
+    this.extended.reset();
+    return true;
+  }
+
+  stopProtocol() {
+    this.protocol = null;
+    this.protocolT = 0;
+  }
+
+  get protocolRunning() {
+    return !!this.protocol;
   }
 
   _emit(t) {
@@ -357,6 +435,11 @@ export class SpindleUnit {
       adaptation: +this.adapt.toFixed(3),
       conductionDelayMs: +(this.delay * 1000).toFixed(2),
       spikes: this.spikeCount,
+      model: this.model,
+      gammaStatic: this.gamma.static,
+      gammaDynamic: this.gamma.dynamic,
+      protocol: this.protocol?.id ?? null,
+      ...(this.model === 'extended' ? this.extended.readout() : {}),
     };
   }
 }
