@@ -122,7 +122,7 @@ Because identity is the contract, everything downstream composes without engine 
 | `platform/projects.js` | ID-keyed scene capture and restore, JSON export/import |
 | `tools/` | Measurement probes and annotations, both ID-anchored |
 | `ui/` | Systems panel, inspector, workspace panels, telemetry, frame diagnostics, entitlement states |
-| `ui/onboarding.js` | First-run coach marks: scale traversal, multi-select, free vs Professional |
+| `ui/tour.js` | Ten-step guided tour: spotlit coach marks over real UI, run once after the disclaimer. See `TOUR.md` |
 
 ### API surface
 
@@ -563,6 +563,15 @@ modal.
 
 An always-on line in the top bar — *Simulation · Not diagnostic · Not a medical device* — shortens
 but never disappears on narrow windows, and the same language appears in the help panel.
+
+### The guided tour
+
+Once the gate is acknowledged, a first-time user gets a ten-step walkthrough of the application —
+navigation, scale, systems, the Inspector, intervention, telemetry, Microscope mode and Help — as
+spotlit coach marks anchored to the real interface rather than a separate screen. It runs once per
+`TOUR_VERSION`, can be restarted from **?** → *Restart guided tour*, and is not modal: the model
+stays draggable throughout. `?tour=1` forces it (without skipping the disclaimer), and
+`CONTINUUM.tour.reset()` clears the record. Full step list and test steps in `TOUR.md`.
 
 To test the gate:
 

@@ -42,7 +42,7 @@ import { Hud } from './ui/hud.js';
 import { Panels } from './ui/panels.js';
 import { PremiumUI } from './ui/premium.js';
 import { Workspace } from './ui/workspace.js';
-import { Onboarding } from './ui/onboarding.js';
+import { Tour, TOUR_VERSION } from './ui/tour.js';
 import { Disclaimer, mountPersistentNotice, DISCLAIMER_VERSION } from './ui/disclaimer.js';
 
 const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -322,7 +322,7 @@ async function main() {
     physio,
   });
   const workspace = new Workspace({ store, props, projects, measures, annotations, hud, premium, actions });
-  const onboarding = new Onboarding({ premium });
+  const tour = new Tour({ premium, scales, store });
 
   hud.onScaleClick((i) => scales.goToTier(i));
 
@@ -769,8 +769,7 @@ async function main() {
   });
   el('#btn-replay-intro').addEventListener('click', () => {
     closeHelp();
-    Onboarding.forget();
-    onboarding.start({ force: true });
+    tour.start({ force: true });
   });
   el('#btn-replay-start').addEventListener('click', () => {
     closeHelp();
@@ -799,7 +798,7 @@ async function main() {
     }
     switch (k.toLowerCase()) {
       case 'escape':
-        if (!el('#coach').hidden) onboarding.stop();
+        if (tour.running) tour.stop();
         else if (!help.hidden) closeHelp();
         else store.clearSelection();
         break;
@@ -978,10 +977,13 @@ async function main() {
     for (const id of ['#topbar', '#panel-left', '#panel-right', '#telemetry', '#scalebar']) el(id).hidden = false;
     hud.perfVisible(store.render.perfHud);
 
-    /* First run gets the coach marks; every later visit gets the one-line prompt.
-       Showing both would be twice as much reading for half as much information. */
-    if (!Onboarding.seen) {
-      setTimeout(() => onboarding.start(), 700);
+    /* First run gets the guided tour; every later visit gets the one-line
+       prompt. Showing both would be twice as much reading for half as much
+       information. ?tour forces it, for testing and for demo links — it forces
+       the tour only, never the disclaimer that precedes it. */
+    const forceTour = /[?&]tour\b/.test(location.search);
+    if (forceTour || !Tour.completed) {
+      setTimeout(() => tour.start({ force: forceTour }), 700);
     } else {
       hud.toast(
         entitlements.isPremium
@@ -1245,6 +1247,22 @@ async function main() {
        read-out here is the same unamplified bag the panel prints, and
        setParam moves a published constant inside its own literature range —
        there is no way through this surface to inject a spike time. */
+    /* The guided tour, reachable from the console for testing. */
+    tour: {
+      start: (opts = { force: true }) => tour.start(opts),
+      stop: () => tour.stop({ remember: false }),
+      reset: () => Tour.reset(),
+      completed: () => Tour.completed,
+      record: () => Tour.record,
+      version: TOUR_VERSION,
+      get running() {
+        return tour.running;
+      },
+      get step() {
+        return tour.index;
+      },
+      steps: () => tour.steps.map((s) => s.id),
+    },
     /* The gate, reachable from the console for testing. reset() clears the
        acknowledgment; the modal returns on the next load. */
     disclaimer: {
