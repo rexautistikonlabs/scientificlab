@@ -687,7 +687,7 @@ the returning-user route by seeding the key before load rather than clicking thr
 
 ## Copyright and licence
 
-Copyright © 2026 RexMetrix Technologies. All rights reserved.
+Copyright © 2026 RexMetrix Technologies, LLC. All rights reserved.
 
 CONTINUUM is **proprietary software**. `package.json` declares
 `"license": "UNLICENSED"` — the SPDX identifier for software that carries no
@@ -695,8 +695,8 @@ public licence at all, not a placeholder awaiting an open-source choice. **No
 open-source grant is made, expressly or by implication.** No right is granted to
 use, copy, modify, distribute, sublicense, sell, reverse-engineer or create
 derivative works from any part of this software except under a written agreement
-signed by RexMetrix Technologies, and possession of a copy — repository, bundle,
-archive, patch or deployed build — does not convey a licence.
+signed by RexMetrix Technologies, LLC, and possession of a copy — repository,
+bundle, archive, patch or deployed build — does not convey a licence.
 
 Third-party dependencies keep their own licences, which this notice neither
 extends to nor restricts. Attribution to published scientific work is a separate

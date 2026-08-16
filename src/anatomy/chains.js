@@ -1,4 +1,4 @@
-/* CONTINUUM — Copyright © 2026 RexMetrix Technologies. All rights reserved.
+/* CONTINUUM — Copyright © 2026 RexMetrix Technologies, LLC. All rights reserved.
    Proprietary and confidential. Not a medical device; not for diagnostic use.
    See PROPRIETARY_NOTICE.md. */
 

@@ -2,7 +2,7 @@
 
 **CONTINUUM**
 
-Copyright © 2026 RexMetrix Technologies. All rights reserved.
+Copyright © 2026 RexMetrix Technologies, LLC. All rights reserved.
 
 ---
 
@@ -10,7 +10,7 @@ Copyright © 2026 RexMetrix Technologies. All rights reserved.
 
 CONTINUUM, including its source code, simulation models, parameter tables,
 anatomical identifier system, documentation and user interface, is the
-proprietary and confidential property of RexMetrix Technologies.
+proprietary and confidential property of RexMetrix Technologies, LLC.
 
 ## Licence
 
@@ -24,7 +24,7 @@ software that is not licensed for public use at all.
 No right is granted to use, copy, modify, merge, publish, distribute,
 sublicense, sell, reverse-engineer or create derivative works from any part of
 this software, in whole or in part, except under a written agreement signed by
-RexMetrix Technologies.
+RexMetrix Technologies, LLC.
 
 Possession of a copy of this repository, in any form — including a git bundle,
 an archive, a patch file, or a deployed build — does not convey a licence.
@@ -59,7 +59,7 @@ work.
 THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
 FOR A PARTICULAR PURPOSE, ACCURACY AND NON-INFRINGEMENT. IN NO EVENT SHALL
-REXMETRIX TECHNOLOGIES BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+REXMETRIX TECHNOLOGIES, LLC BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
@@ -93,4 +93,4 @@ does not change that, and a licensee acquires no right to represent otherwise.
 
 ## Contact
 
-Licensing enquiries: RexMetrix Technologies.
+Licensing enquiries: RexMetrix Technologies, LLC.
