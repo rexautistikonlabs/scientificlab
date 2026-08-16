@@ -1,3 +1,7 @@
+/* CONTINUUM — Copyright © 2026 RexMetrix Technologies. All rights reserved.
+   Proprietary and confidential. Not a medical device; not for diagnostic use.
+   See PROPRIETARY_NOTICE.md. */
+
 /* ============================================================
    Property store — everything the platform knows about a structure,
    keyed by anatomical ID.

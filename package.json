@@ -5,6 +5,9 @@
   "private": true,
   "type": "module",
   "description": "Interactive multi-scale simulation of living biotensegrity and afferent signal flow.",
+  "license": "UNLICENSED",
+  "author": "RexMetrix Technologies",
+  "copyright": "Copyright © 2026 RexMetrix Technologies. All rights reserved.",
   "engines": {
     "node": ">=22.12.0"
   },

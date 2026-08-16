@@ -682,3 +682,34 @@ location.reload()
 
 `CONTINUUM.disclaimer` also exposes `acknowledged()`, `record()` and `version`. Automated tests take
 the returning-user route by seeding the key before load rather than clicking through on every run.
+
+---
+
+## Copyright and licence
+
+Copyright © 2026 RexMetrix Technologies. All rights reserved.
+
+CONTINUUM is **proprietary software**. `package.json` declares
+`"license": "UNLICENSED"` — the SPDX identifier for software that carries no
+public licence at all, not a placeholder awaiting an open-source choice. **No
+open-source grant is made, expressly or by implication.** No right is granted to
+use, copy, modify, distribute, sublicense, sell, reverse-engineer or create
+derivative works from any part of this software except under a written agreement
+signed by RexMetrix Technologies, and possession of a copy — repository, bundle,
+archive, patch or deployed build — does not convey a licence.
+
+Third-party dependencies keep their own licences, which this notice neither
+extends to nor restricts. Attribution to published scientific work is a separate
+matter from software licensing and lives where the work is used: `MICRO_MODE.md`,
+`src/data/micro/literature_params.js`, `src/data/afferent_params.js`,
+`VALIDATION_MATRIX.md` and `AFFERENT_PARAMS.md`.
+
+Full terms, including the no-warranty clause, are in
+[`PROPRIETARY_NOTICE.md`](PROPRIETARY_NOTICE.md).
+
+Licensing changes nothing about scope. CONTINUUM is a literature-informed
+simulation for research and education — **not a medical device, not a diagnostic
+tool, and not a substitute for professional medical advice, diagnosis, or
+treatment**. No module is validated against measured human data; see
+`VALIDATION_MATRIX.md`. A licensee acquires no right to represent otherwise.
+**Do not use CONTINUUM to make clinical decisions.**

@@ -1,3 +1,7 @@
+/* CONTINUUM — Copyright © 2026 RexMetrix Technologies. All rights reserved.
+   Proprietary and confidential. Not a medical device; not for diagnostic use.
+   See PROPRIETARY_NOTICE.md. */
+
 /* ============================================================
    Central application state. Everything the UI shows and every
    knob the simulation reads lives here, so panels, viewport and

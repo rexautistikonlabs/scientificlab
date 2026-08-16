@@ -1,3 +1,7 @@
+/* CONTINUUM — Copyright © 2026 RexMetrix Technologies. All rights reserved.
+   Proprietary and confidential. Not a medical device; not for diagnostic use.
+   See PROPRIETARY_NOTICE.md. */
+
 /* ============================================================
    Workspace panels: research overlays, parameter sets, measurement
    tools and project persistence.
