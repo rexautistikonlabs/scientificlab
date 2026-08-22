@@ -341,11 +341,29 @@ export class ScaleManager {
         // so descending anywhere lands inside a cell of the local tissue
         this.cell.root.position.copy(this._microPos);
         const sp = this.spindle;
+        /* Local congestion, read from the same solve as everything else: the
+           intervention fields — stiffening, viscosity, pressure — at the two
+           nodes of the element this cell's spindle is bound to. Restriction
+           raises the first two, compression the third, and the whole-body
+           tools write all of them through the one verified intervention path,
+           so nothing here is a second physics — it is the first physics, read
+           at one more scale. */
+        let congest = 0;
+        if (sp?.resolved) {
+          const sv = sp.solver;
+          const a = sv.ea[sp.element];
+          const b = sv.eb[sp.element];
+          const stiff = (sv.stiffness[a] + sv.stiffness[b]) * 0.5;
+          const visc = (sv.viscosity[a] + sv.viscosity[b]) * 0.5;
+          const press = (sv.pressure[a] + sv.pressure[b]) * 0.5;
+          congest = clamp(stiff * 1.1 + visc * 0.7 + press * 0.6, 0, 1);
+        }
         this.cell.update(dt, {
           blend: cellBlend,
           strain: sp?.resolved ? sp.strain : 0,
           velocity: sp?.resolved ? sp.velocity : 0,
           running: this.store.physio.running,
+          congest,
         });
       }
     }

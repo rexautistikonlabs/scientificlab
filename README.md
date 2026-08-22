@@ -320,7 +320,13 @@ What the shading spends, and why:
   arriving at the tier opens the cell rather than showing a closed envelope. The same solve
   drives it: the cell stretches with the muscle element the spindle reads, stress fibres and
   focal adhesions brighten with strain and strain rate, and the crowd stills when the physiology
-  is held. An illustrative composition in the language of integrative cell reconstructions —
+  is held. A fine-grain matrix of ~12 000 muted granules underlies the coloured families —
+  multi-scale crowding is what makes a reconstruction read as packed rather than sparse — and the
+  crowd *congests*: restriction, compression and load applied with the whole-body tools raise the
+  solver's own stiffening/viscosity/pressure fields at this cell's element, and the complexes
+  respond by drifting into condensation clumps, slowing their Brownian seethe, running the stress
+  fibres hot and roughening the membrane. The mapping is schematic — solved tissue state onto
+  crowd behaviour, not a molecular simulation — and `CONTINUUM.cell.state()` says so. An illustrative composition in the language of integrative cell reconstructions —
   not reconstructed from any imaging dataset, with display sizes exaggerated for legibility.
   Like the beds, it is scenery: not solver-bound, not pickable, and deliberately absent from the
   ID manifest, which is a compatibility contract that must not grow for presentation.
@@ -441,20 +447,26 @@ The cellular interior is the newest and heaviest instanced content, and it has i
 diagnostics — `cell crowd`, shown as `drawn/full · blend` whenever the tier is in view. Procedure:
 
 1. Start at **High**, locked. Press <kbd>6</kbd> (or click **Cell** on the rail) and let the descent
-   land; the read-out should show `7289/7300 · blend 1.00` at High/Ultra, `4672` at Medium, `730` at
-   Low.
+   land; the read-out should show `22564/22600 · blend 1.00` at High/Ultra, `~14464` at Medium,
+   `2260` at Low.
 2. Orbit slowly for ten seconds, then wheel in to a ~15 µm span (the floor) and back out to the
    receptor tier, watching frame time — the crossfade and the membrane crossing are the moments a
    real GPU could hitch on shader or buffer residency, and they should not.
 3. Switch to **Auto** and repeat the descent under load (another window, or a second monitor
    playing video). Auto should shed render scale first, then tier; the `cell crowd` row shows the
    crowd shrink with the tier, and the decision log records why.
+4. **The congestion response.** With the cell in view, select the microscope's muscle in the body
+   (or use a pathology set), apply **Restriction** at a high magnitude, and watch the interior for
+   the two seconds the intervention takes to ramp: the crowd should clump toward condensation
+   loci with voids opening near the membrane, the seethe should slow, the stress fibres run hot,
+   and the membrane tremble. Release, and it disperses. On the software rasteriser this takes tens
+   of seconds — the ramp advances per frame.
 
 What good looks like at 1080p: on a mid-range discrete GPU (or Apple silicon) the Cell tier at High
-should sit comfortably inside 16 ms with the full 7 300-complex crowd — it is a fraction of the
-whole-body fill cost, because one cell replaces a dozen overlapping translucent shells. Integrated
-graphics at Medium should hold 60 fps with the 4 672-complex crowd; Low is expected to be fluid
-anywhere, drawing a tenth of the crowd and no matrix context.
+should sit comfortably inside 16 ms with the full 22 600-complex crowd — instanced in five draw
+calls, it is cheaper than the whole-body translucent fill. Integrated graphics at Medium should
+hold 60 fps with the ~14 500-complex crowd; Low is expected to be fluid anywhere, drawing a tenth
+of the crowd and no matrix context.
 
 Software-rasteriser artefacts specific to this tier: single-digit frame rates (vertex cost of the
 instanced crowd, which real GPUs absorb trivially), and Brownian jitter that appears stuttery only

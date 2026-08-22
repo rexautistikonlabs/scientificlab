@@ -54,6 +54,7 @@ const CROWD_VERT = /* glsl */ `
 
   uniform float uTime;
   uniform float uJitter;
+  uniform float uCongest;
 
   varying vec3 vCol;
   varying vec3 vNrm;
@@ -65,15 +66,37 @@ const CROWD_VERT = /* glsl */ `
 
   void main() {
     vCol = iColor;
+
+    /* Congestion — the solved local state of the tissue this cell lives in,
+       mapped onto crowd behaviour. Under restriction, compression or load the
+       complexes drift toward condensation loci (denser packing, with voids
+       opening between the clumps) and their Brownian seethe slows: crowding
+       and hindered diffusion, the two things a congested cytoplasm actually
+       shows. The loci are fixed points in the cytoplasm chosen clear of the
+       nucleus; how far each complex commits is seeded per instance, so a
+       congested cell keeps texture instead of collapsing to four points. */
+    const vec3 A0 = vec3(${0.55 * S}, ${0.25 * S}, ${0.3 * S});
+    const vec3 A1 = vec3(${0.35 * S}, ${-0.45 * S}, ${-0.3 * S});
+    const vec3 A2 = vec3(${0.1 * S}, ${0.5 * S}, ${-0.45 * S});
+    const vec3 A3 = vec3(${0.62 * S}, ${-0.08 * S}, ${0.42 * S});
+    float pick = floor(fract(iSeed * 5.03) * 4.0);
+    vec3 att = A0;
+    if (pick > 2.5) att = A3;
+    else if (pick > 1.5) att = A2;
+    else if (pick > 0.5) att = A1;
+    float commit = min(1.0, uCongest * (0.25 + 0.6 * fract(iSeed * 13.7)));
+    vec3 base = mix(iOffset, att, commit);
+
     // Brownian seethe, free per instance: three incommensurate sines seeded
     // per complex. Amplitude is a fraction of the complex's own size, so big
-    // things lumber and small things skitter.
+    // things lumber and small things skitter — and congestion slows all of it.
     vec3 jig = vec3(
       sin(uTime * 2.3 + iSeed * 17.0),
       sin(uTime * 2.9 + iSeed * 29.0),
       cos(uTime * 2.1 + iSeed * 23.0)
-    ) * uJitter * iScale * 0.55;
-    vec3 p = iOffset + jig + qrot(iQuat, position * iScale);
+    ) * uJitter * iScale * 0.55 * (1.0 - 0.75 * uCongest);
+
+    vec3 p = base + jig + qrot(iQuat, position * iScale);
     vec4 wp = modelMatrix * vec4(p, 1.0);
     vWPos = wp.xyz;
     vNrm = normalize(mat3(modelMatrix) * qrot(iQuat, normal));
@@ -131,6 +154,7 @@ function crowdMaterial() {
       uCutDist: GLOBAL.uCutDist,
       uSlabFar: GLOBAL.uSlabFar,
       uJitter: { value: 0.15 },
+      uCongest: { value: 0 },
       uOpacity: { value: 1 },
     },
     transparent: true, // opacity animates during the tier fade
@@ -350,7 +374,7 @@ export function buildCellscape() {
   };
 
   /* ---- plasma membrane — sectioned open by the depth-of-interest slab ---- */
-  addMesh(
+  const membrane = addMesh(
     subject,
     microBlob(MEM.a * S, MEM.b * S, MEM.c * S, 28),
     { color: 0xd8b49a, opacity: 0.36, rough: 0.6, spec: 0.3, rim: 0.9, mode: 'xray', xrayFloor: 0.05, doubleSide: true, sss: 0.5, wobble: S * 0.012 },
@@ -520,7 +544,7 @@ export function buildCellscape() {
   {
     const icoItems = [];
     const rodItems = [];
-    for (let k = 0; k < 6800; k++) {
+    for (let k = 0; k < 8600; k++) {
       const f = pickFamily(r);
       const item = {
         p: cytoPoint(r),
@@ -533,14 +557,43 @@ export function buildCellscape() {
     for (const [base, items] of [[ico, icoItems], [rod, rodItems]]) {
       const m = crowdMesh(base, items);
       m.renderOrder = 1;
+      m.userData.congestAmp = 1;
       subject.add(m);
       crowds.push(m);
     }
   }
   {
+    /* The fine-grain matrix — what makes an integrative reconstruction read as
+       *packed* rather than sparse is not more machines, it is the second scale
+       of crowding underneath them: a dense field of small, chromatically quiet
+       granules that fills the space the coloured families sit in. Muted on
+       purpose, so the identified families stay the figures and this stays the
+       ground. It congests with everything else, which is what makes a build-up
+       read at every scale at once. */
+    const fine = [
+      { c: 0xcfc4b2, w: 0.4 },
+      { c: 0x9fb2c2, w: 0.32 },
+      { c: 0xb99e6e, w: 0.28 },
+    ];
+    const items = [];
+    for (let k = 0; k < 12000; k++) {
+      items.push({
+        p: cytoPoint(r, 0.95),
+        s: S * (0.004 + 0.007 * r()),
+        c: pick(fine, r),
+        q: randQuat(r),
+      });
+    }
+    const m = crowdMesh(ico, items);
+    m.renderOrder = 1;
+    m.userData.congestAmp = 1;
+    subject.add(m);
+    crowds.push(m);
+  }
+  {
     // chromatin — the nuclear crowd
     const items = [];
-    for (let k = 0; k < 900; k++) {
+    for (let k = 0; k < 1300; k++) {
       let p;
       for (let i = 0; i < 20; i++) {
         const u = V(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1);
@@ -553,19 +606,23 @@ export function buildCellscape() {
     }
     const m = crowdMesh(ico, items);
     m.renderOrder = 1;
+    // chromatin stays in the nucleus — the condensation loci are cytoplasmic
+    m.userData.congestAmp = 0;
     subject.add(m);
     crowds.push(m);
   }
   {
     // membrane-studded proteins
     const items = [];
-    for (let k = 0; k < 500; k++) {
+    for (let k = 0; k < 700; k++) {
       const dir = V(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1).normalize();
       const p = V(dir.x * MEM.a * S, dir.y * MEM.b * S, dir.z * MEM.c * S);
       items.push({ p, s: S * (0.02 + 0.016 * r()), c: pick(STUD_PALETTE, r), q: randQuat(r) });
     }
     const m = crowdMesh(ico, items);
     m.renderOrder = 8;
+    // anchored in the bilayer — congestion does not migrate them
+    m.userData.congestAmp = 0;
     subject.add(m);
     crowds.push(m);
   }
@@ -596,6 +653,10 @@ export function buildCellscape() {
   /* ---------------- runtime ---------------- */
 
   let jitter = 0.15;
+  let congestSm = 0;
+  const HOT = new THREE.Color(0xff6a2a);
+  for (const m of tensionMats) m.userData.baseColor = m.uniforms.uColor.value.clone();
+  const membraneBaseWobble = membrane.material.uniforms.uWobble.value;
 
   /** Quality lever: the crowd is the cost, so the crowd is the knob. */
   function setDetail(f) {
@@ -612,7 +673,7 @@ export function buildCellscape() {
    * element read straight from the solver, so the cell stretches with the
    * muscle it lives in and its adhesion machinery lights under load.
    */
-  function update(dt, { blend = 1, strain = 0, velocity = 0, running = true } = {}) {
+  function update(dt, { blend = 1, strain = 0, velocity = 0, running = true, congest = 0 } = {}) {
     for (const m of materials) m.uniforms.uOpacity.value = m.userData.cellBase * blend;
     for (const m of crowds) m.material.uniforms.uOpacity.value = blend;
 
@@ -624,9 +685,27 @@ export function buildCellscape() {
     jitter = approach(jitter, running ? 1 : 0.12, 2.5, dt);
     for (const m of crowds) m.material.uniforms.uJitter.value = jitter;
 
-    // stress fibres and adhesions brighten with load and loading rate
-    const drive = clamp(Math.abs(strain) * 30 + Math.abs(velocity) * 2, 0, 0.85);
-    for (const m of tensionMats) m.uniforms.uEmissive.value = 0.1 + drive;
+    /* Congestion. `congest` arrives as a composite of the solver's own local
+       state — stiffening, viscosity, pressure — at the very element this cell
+       is bound to, so a restriction applied with the whole-body tools shows up
+       here as crowding, and releasing it lets the cytoplasm disperse again.
+       Smoothed, because the interventions step-change and cytoplasm does not. */
+    congestSm = approach(congestSm, clamp(congest, 0, 1), 1.6, dt);
+    for (const m of crowds) {
+      m.material.uniforms.uCongest.value = congestSm * (m.userData.congestAmp ?? 1);
+    }
+
+    // stress fibres and adhesions brighten with load and loading rate, and run
+    // hot toward orange as the tissue congests — distress the eye can read
+    const drive = clamp(Math.abs(strain) * 30 + Math.abs(velocity) * 2 + congestSm * 0.55, 0, 1.1);
+    for (const m of tensionMats) {
+      m.uniforms.uEmissive.value = 0.1 + drive * 0.8;
+      m.uniforms.uColor.value.copy(m.userData.baseColor).lerp(HOT, clamp(congestSm * 0.8, 0, 0.8));
+    }
+
+    // the membrane roughens as the interior crowds — resting tone is a breath,
+    // congestion is a visible tremor
+    membrane.material.uniforms.uWobble.value = membraneBaseWobble * (1 + 4.5 * congestSm);
   }
 
   const state = () => ({
@@ -635,6 +714,9 @@ export function buildCellscape() {
     crowdDrawn: crowds.reduce((n, m) => n + m.geometry.instanceCount, 0),
     crowdFull: crowds.reduce((n, m) => n + m.userData.fullCount, 0),
     jitter: +jitter.toFixed(2),
+    congestion: +congestSm.toFixed(2),
+    congestionNote:
+      'schematic mapping of the solved local tissue state (stiffening, viscosity, pressure) onto crowd behaviour — not a molecular simulation',
   });
 
   return { root, subject, context, materials, crowds, setDetail, update, state };
