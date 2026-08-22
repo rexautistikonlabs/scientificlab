@@ -35,7 +35,11 @@ export class Controls {
     this._phi = this.phi;
     this._dist = this.dist;
 
-    this.minDist = 0.00035;
+    /* The absolute floor sits one step below the Cell tier's nominal span, so
+       the wheel can push into a cell interior (~15 µm view) and no further —
+       past that there is nothing built to see, and the logarithmic depth
+       buffer is what makes a 6 m → 30 µm camera range workable at all. */
+    this.minDist = 0.000022;
     this.maxDist = 6.0;
     this.minPhi = 0.12;
     this.maxPhi = Math.PI - 0.12;
@@ -196,7 +200,7 @@ export class Controls {
    * deeper, rather than the deeper view being drawn and then hidden.
    */
   setMinSpan(span) {
-    this.minDist = Math.max(0.00035, this.distForSpan(span));
+    this.minDist = Math.max(0.000022, this.distForSpan(span));
     if (this.dist < this.minDist) this.dist = this.minDist;
     if (this._dist < this.minDist) this._dist = this.minDist;
   }
@@ -256,6 +260,15 @@ export class Controls {
 
   get flying() {
     return !!this._fly;
+  }
+
+  /** The span this camera is headed for: the flight destination if one is in
+      progress, the settled span otherwise. Lets callers reason about intent
+      rather than the transient position mid-flight. */
+  destinationSpan() {
+    const d = this._fly ? this._fly.to.dist : this._dist;
+    const f = (this.camera.fov * Math.PI) / 180;
+    return 2 * d * Math.tan(f / 2);
   }
 
   cancelFly() {

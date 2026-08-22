@@ -39,6 +39,11 @@ export const CAPABILITIES = Object.freeze({
     tiers: ['premium'],
     blurb: 'Continuous macro → tissue → receptor traversal, and the receptor micro-anatomy.',
   },
+  'scale.cellular': {
+    name: 'Cellular scale',
+    tiers: ['premium'],
+    blurb: 'Descend past the receptor into a schematic living cell — organelles, cytoskeleton and the molecular crowd, driven by the same solve.',
+  },
   'camera.freeFly': {
     name: 'Unrestricted camera',
     tiers: ['premium'],
@@ -248,7 +253,9 @@ export class Entitlements extends Emitter {
   }
 
   maxScaleTier() {
-    return this.can('scale.deep') ? 4 : FREE_MAX_TIER;
+    if (this.can('scale.cellular')) return 5;
+    if (this.can('scale.deep')) return 4;
+    return FREE_MAX_TIER;
   }
 
   /** Capabilities the current tier does not have, for the upgrade dialog. */

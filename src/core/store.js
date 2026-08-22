@@ -134,6 +134,7 @@ export const SCALES = [
   { id: 'organ', name: 'Organ', span: 0.12, note: '≈ 12 cm' },
   { id: 'tissue', name: 'Tissue', span: 0.012, note: '≈ 12 mm' },
   { id: 'receptor', name: 'Receptor', span: 0.0009, note: '≈ 900 µm' },
+  { id: 'cell', name: 'Cell', span: 0.000045, note: '≈ 45 µm' },
 ];
 
 export const TOOLS = [

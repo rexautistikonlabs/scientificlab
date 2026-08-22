@@ -69,7 +69,7 @@ export function tierFor(span) {
 }
 
 export class ScaleManager {
-  constructor({ store, controls, registry, receptors, micro, signals, camera, spindle = null }) {
+  constructor({ store, controls, registry, receptors, micro, signals, camera, spindle = null, cell = null }) {
     this.store = store;
     this.controls = controls;
     this.registry = registry;
@@ -79,6 +79,9 @@ export class ScaleManager {
     this.camera = camera;
     /** micro-mechanics unit driving the spindle geometry, set by main.js */
     this.spindle = spindle;
+    /** the cellular-tier interior, built by anatomy/cellscape.js */
+    this.cell = cell;
+    this.cellBlend = 0;
 
     this.tier = 0;
     this.maxTier = SCALES.length - 1;
@@ -99,6 +102,7 @@ export class ScaleManager {
       { center: new THREE.Vector3(-0.02, 1.26, 0.02), theta: 0.7, phi: Math.PI * 0.5 - 0.16 },
       { center: new THREE.Vector3(0.03, 1.22, 0.05), theta: 0.9, phi: Math.PI * 0.5 - 0.2 },
       { center: new THREE.Vector3(0.03, 1.22, 0.056), theta: 1.1, phi: Math.PI * 0.5 - 0.24 },
+      { center: new THREE.Vector3(0.03, 1.22, 0.056), theta: 1.25, phi: Math.PI * 0.5 - 0.2 },
     ];
     this._resolveDeepDefaults();
   }
@@ -127,6 +131,7 @@ export class ScaleManager {
       if (!s) continue;
       this.defaults[3].center.copy(s.center);
       this.defaults[4].center.copy(s.center);
+      this.defaults[5].center.copy(s.center);
       return;
     }
   }
@@ -141,7 +146,8 @@ export class ScaleManager {
     const maxTier = entitlements.maxScaleTier();
     this.maxTier = maxTier;
     if (maxTier >= SCALES.length - 1) {
-      this.controls.minDist = 0.00035;
+      // one step past the Cell tier's nominal span — inside the cell, then stop
+      this.controls.minDist = 0.000022;
       return;
     }
     // a little past the deepest allowed tier, so that tier is comfortable to sit in
@@ -152,7 +158,7 @@ export class ScaleManager {
   goToTier(index, opts = {}) {
     let i = clamp(Math.round(index), 0, SCALES.length - 1);
     if (i > this.maxTier) {
-      entitlements.require('scale.deep', { tier: SCALES[i].id });
+      entitlements.require(i >= 5 ? 'scale.cellular' : 'scale.deep', { tier: SCALES[i].id });
       i = this.maxTier;
     }
     const def = this.defaults[i];
@@ -206,11 +212,21 @@ export class ScaleManager {
     this.tier = t;
     this.store.setScaleFloat(t);
 
+    /* The cellular handover: past the receptor tier the cell interior fades in
+       and the receptor scene yields — a crossfade, not a switch, so the descent
+       reads as one continuous dive rather than a scene change. Computed here
+       because the receptor markers below also need it. */
+    this.cellBlend = this.cell ? smootherstep(clamp((t - 4.25) / 0.6, 0, 1)) : 0;
+
     /* Progressive cutaway. Whole-body and region views stay intact; from the organ
        tier down the near plane advances toward the look-at point, so the tissue in
        front of the structure you are studying is sectioned away instead of
-       obscuring it. */
-    this.controls.nearFrac = lerp(0.004, 0.66, smootherstep(clamp((t - 1.35) / 0.85, 0, 1)));
+       obscuring it. At the cellular tier it advances further still — past the
+       front of the plasma membrane — which is what opens the cell like an
+       optical section instead of showing a closed envelope. */
+    this.controls.nearFrac =
+      lerp(0.004, 0.66, smootherstep(clamp((t - 1.35) / 0.85, 0, 1))) +
+      0.24 * smootherstep(clamp((t - 4.2) / 0.7, 0, 1));
 
     /* ---- LOD + layer weighting; re-applied only when the position moves enough
            to matter, so this is not a per-frame cost over 270 structures ---- */
@@ -234,7 +250,10 @@ export class ScaleManager {
            span is a wall in front of it. */
         const focus = lerp(0.3, 1, smootherstep(clamp((t - 0.7) / 1.5, 0, 1)));
         const inMicro = this.store.micro.active ? 0.12 : 1;
-        pop.material.uniforms.uOpacity.value = this.store.effectiveOpacity('receptor') * focus * inMicro;
+        // and gone entirely inside the cell — an exaggerated marker is metres
+        // of wall at a forty-micron span
+        pop.material.uniforms.uOpacity.value =
+          this.store.effectiveOpacity('receptor') * focus * inMicro * (1 - this.cellBlend);
       }
     }
 
@@ -273,6 +292,7 @@ export class ScaleManager {
        descending — the tissue tier shows tissue instead of the empty gap that
        used to sit between the organ view and the receptor view. */
     const microBlend = smootherstep(clamp((t - 2.65) / 0.65, 0, 1));
+    const cellBlend = this.cellBlend;
     const wantMicro = microBlend > 0.01 || this.store.micro.active;
     this.micro.root.visible = wantMicro;
     if (wantMicro) {
@@ -303,13 +323,31 @@ export class ScaleManager {
       if (model) {
         for (const mm of model.materials) {
           const u = mm.uniforms?.uOpacity;
-          if (u) u.value = (mm.userData.baseOpacity ?? 1) * microBlend;
+          if (u) u.value = (mm.userData.baseOpacity ?? 1) * microBlend * (1 - 0.97 * cellBlend);
         }
         this._driveSpindleGeometry(model);
       }
     } else if (this._microActive) {
       for (const [, m] of this.micro.models) m.group.visible = false;
       this._microActive = null;
+    }
+
+    /* ---- the cellular interior ---- */
+    if (this.cell) {
+      const wantCell = cellBlend > 0.01;
+      this.cell.root.visible = wantCell;
+      if (wantCell) {
+        // anchored to the same travelling look-at point as the micro models,
+        // so descending anywhere lands inside a cell of the local tissue
+        this.cell.root.position.copy(this._microPos);
+        const sp = this.spindle;
+        this.cell.update(dt, {
+          blend: cellBlend,
+          strain: sp?.resolved ? sp.strain : 0,
+          velocity: sp?.resolved ? sp.velocity : 0,
+          running: this.store.physio.running,
+        });
+      }
     }
   }
 
@@ -365,8 +403,14 @@ export class ScaleManager {
     const extent = this._extentOf(model);
     if (!extent) return;
     const want = extent * MICRO_FRAME_MARGIN;
-    if (!fit && this.controls.span >= want * 0.98) return;
-    if (fit && Math.abs(this.controls.span / want - 1) < 0.12) return;
+    /* Judge by where the camera is *headed*, not where it happens to be
+       mid-flight — and never hijack a descent to the cellular tier: a jump
+       from the body to the Cell crosses the microscope threshold on the way
+       down, and widening to frame the spindle would cancel the user's jump. */
+    const dest = this.controls.destinationSpan();
+    if (dest <= SCALES[5].span * 2.2) return;
+    if (!fit && dest >= want * 0.98) return;
+    if (fit && Math.abs(dest / want - 1) < 0.12) return;
     this.controls.flyTo({ span: want, duration: 0.9 });
   }
 
@@ -402,7 +446,9 @@ export class ScaleManager {
     const target = span * 0.16;
     const len = niceRound(target);
     const px = (len / span) * viewportHeight;
-    return { len, px, text: formatLength(len), toScale: receptorsToScale(this.tier) };
+    // the "endings at true size" note belongs to the receptor scene; inside
+    // the cell the endings are not drawn at all
+    return { len, px, text: formatLength(len), toScale: receptorsToScale(this.tier) && this.cellBlend < 0.5 };
   }
 
   get tierLabel() {

@@ -343,7 +343,8 @@ export class PremiumUI {
       const locked = i > max;
       b.classList.toggle('locked', locked);
       if (locked) {
-        b.title = `${SCALES[i].name} scale — Professional. ${CAPABILITIES['scale.deep'].blurb}`;
+        const cap = i >= 5 ? 'scale.cellular' : 'scale.deep';
+        b.title = `${SCALES[i].name} scale — Professional. ${CAPABILITIES[cap].blurb}`;
       } else {
         b.title = `Traverse to the ${SCALES[i].name.toLowerCase()} scale (${SCALES[i].note})`;
       }

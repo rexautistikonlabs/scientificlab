@@ -31,6 +31,7 @@ import { Afferent } from './sim/afferent.js';
 import { buildBody } from './anatomy/index.js';
 import { setReceptorDensity } from './anatomy/receptors.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
+import { buildCellscape } from './anatomy/cellscape.js';
 import { buildSpindle, MICRO_ROIS } from './sim/spindle.js';
 import { PROTOCOLS as MICRO_PROTOCOLS, simulateProtocol, peaksPerRepetition, ExtendedDrive } from './sim/spindle_extended.js';
 import { P as P_MICRO, listParams, setParam, BLUM_2020 } from './data/micro/literature_params.js';
@@ -152,6 +153,10 @@ async function main() {
   const micro = buildMicroAnatomy();
   scene.add(micro.root);
 
+  await setBoot('populating the cellular interior', 0.88);
+  const cell = buildCellscape();
+  scene.add(cell.root);
+
   /* ---------------- physiology & signalling ---------------- */
   const physio = new Physiology(solver, net, store);
   const afferent = new Afferent(solver, physio, store, receptors.populations);
@@ -205,7 +210,7 @@ async function main() {
   controls.target.set(0, 0.95, 0);
   controls.setSpan(SCALES[0].span * 1.05, true);
 
-  const scales = new ScaleManager({ store, controls, registry, receptors, micro, signals, camera, spindle: microSpindle });
+  const scales = new ScaleManager({ store, controls, registry, receptors, micro, signals, camera, spindle: microSpindle, cell });
   scales.applyEntitlements();
 
   /* ============================================================
@@ -231,6 +236,8 @@ async function main() {
     microPulses.setDensity(tier.particles);
     // the receptor tissue beds are presentation only — the weakest tier skips them
     micro.setDetail?.(tier.particles);
+    // the molecular crowd is the cellular tier's whole cost, so it is the knob
+    cell.setDetail(tier.particles);
     postfx.setSamples(tier.msaa);
     postfx.setLevels(tier.bloomLevels);
     postfx.set('uChroma', tier.chroma);
@@ -830,7 +837,7 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement) return;
     const k = e.key;
-    if (k >= '1' && k <= '5') {
+    if (k >= '1' && k <= '6') {
       scales.goToTier(+k - 1);
       hud.toast(`<b>${SCALES[+k - 1].name}</b> scale · ${SCALES[+k - 1].note}`, 1800);
       return;
@@ -1319,6 +1326,15 @@ async function main() {
       acknowledged: () => Disclaimer.acknowledged,
       record: () => Disclaimer.record,
       version: DISCLAIMER_VERSION,
+    },
+    /* The cellular tier. `state()` says what it is in its own words —
+       a schematic composition, not a reconstruction — and reports the live
+       crowd budget the quality tier has granted. */
+    cell: {
+      state: () => cell.state(),
+      get blend() {
+        return scales.cellBlend;
+      },
     },
     micro: {
       get spindle() {

@@ -1,7 +1,8 @@
 # CONTINUUM
 
 **Living biotensegrity and afferent flow** — an interactive, multi-scale simulation of the body
-as a single continuous tension network, from whole body down to individual mechanoreceptors.
+as a single continuous tension network, from the whole body down through individual
+mechanoreceptors to the interior of a single cell.
 
 A standalone freemium product on an extensible platform: a compact core engine, a fully selectable
 living body, and every property, dataset and user artefact attached by permanent anatomical ID.
@@ -113,6 +114,7 @@ Because identity is the contract, everything downstream composes without engine 
 | `sim/spindle.js` | One muscle spindle bound to a network element: kinematics, drive, exact integrate-and-fire, conduction |
 | `sim/spindle_extended.js` | Optional Extended drive: history, tension/yank, fusimotor, scenario protocols. See `MICRO_MODE.md` |
 | `anatomy/` | Procedural geometry for eight systems + receptor fields + receptor micro-anatomy |
+| `anatomy/cellscape.js` | The Cell tier: schematic fibroblast-like interior — membrane, organelles, cytoskeleton, instanced molecular crowd |
 | `gfx/` | Shared tissue shader, signal streams, network overlay, post pipeline |
 | `core/` | State store, scale-aware orbit controls, multi-scale manager |
 | `core/quality.js` | Tier table, hardware detection, adaptive quality controller |
@@ -311,6 +313,17 @@ What the shading spends, and why:
   epidermal ridges over the Meissner corpuscle, the muscle–tendon junction through the Golgi
   organ, fat lobules and septa around the Pacinian. Beds are presentation only: not solver-bound,
   not pickable, no IDs.
+- **The cellular interior.** The sixth tier descends into a schematic fibroblast-like cell:
+  a sectionable membrane, nucleus and organelles, cytoskeletal filaments, and a molecular crowd
+  of several thousand instanced complexes coloured by family, with per-instance Brownian motion
+  computed in the vertex shader. The optical section advances past the membrane front, so
+  arriving at the tier opens the cell rather than showing a closed envelope. The same solve
+  drives it: the cell stretches with the muscle element the spindle reads, stress fibres and
+  focal adhesions brighten with strain and strain rate, and the crowd stills when the physiology
+  is held. An illustrative composition in the language of integrative cell reconstructions —
+  not reconstructed from any imaging dataset, with display sizes exaggerated for legibility.
+  Like the beds, it is scenery: not solver-bound, not pickable, and deliberately absent from the
+  ID manifest, which is a compatibility contract that must not grow for presentation.
 
 All of it reads the same solved field: tension colouring, displacement and the force ramp are
 untouched, and none of these terms exists on the Low tier's cost path (see the table).
@@ -325,6 +338,7 @@ untouched, and none of these terms exists on the Low tier's cost path (see the t
 | Translucent shells | rim-weighted, single-sided | full, double-sided | full, double-sided | full, double-sided |
 | Lighting | rig + hemisphere ambient, no specular, no subsurface | full: dual-lobe specular + subsurface | full | full |
 | Receptor tissue beds | off | on | on | on |
+| Cellular molecular crowd | ~10 % | ~64 % | full | full |
 | Receptor endings drawn | 500 | 882 | 1 469 | 1 469 |
 | Signal beads drawn | 540 | 960 | 1 500 | 1 920 |
 | Suits | integrated graphics, older laptops, software rendering | recent integrated graphics, mid-range laptops | discrete GPUs, Apple silicon | modern discrete GPUs, high-DPI displays |
