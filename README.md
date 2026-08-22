@@ -435,7 +435,37 @@ gain from the translucent alpha cut and the specular-free lighting path, which a
 does not reward. Everything else — draw calls, triangles, drawn counts, CPU time, the ID manifest,
 Auto's decision sequence — is hardware-independent and can be trusted as it stands.
 
+### Measuring the Cell tier
+
+The cellular interior is the newest and heaviest instanced content, and it has its own row in the
+diagnostics — `cell crowd`, shown as `drawn/full · blend` whenever the tier is in view. Procedure:
+
+1. Start at **High**, locked. Press <kbd>6</kbd> (or click **Cell** on the rail) and let the descent
+   land; the read-out should show `7289/7300 · blend 1.00` at High/Ultra, `4672` at Medium, `730` at
+   Low.
+2. Orbit slowly for ten seconds, then wheel in to a ~15 µm span (the floor) and back out to the
+   receptor tier, watching frame time — the crossfade and the membrane crossing are the moments a
+   real GPU could hitch on shader or buffer residency, and they should not.
+3. Switch to **Auto** and repeat the descent under load (another window, or a second monitor
+   playing video). Auto should shed render scale first, then tier; the `cell crowd` row shows the
+   crowd shrink with the tier, and the decision log records why.
+
+What good looks like at 1080p: on a mid-range discrete GPU (or Apple silicon) the Cell tier at High
+should sit comfortably inside 16 ms with the full 7 300-complex crowd — it is a fraction of the
+whole-body fill cost, because one cell replaces a dozen overlapping translucent shells. Integrated
+graphics at Medium should hold 60 fps with the 4 672-complex crowd; Low is expected to be fluid
+anywhere, drawing a tenth of the crowd and no matrix context.
+
+Software-rasteriser artefacts specific to this tier: single-digit frame rates (vertex cost of the
+instanced crowd, which real GPUs absorb trivially), and Brownian jitter that appears stuttery only
+because the frame rate is.
+
 ## Research overlays
+
+> The full authoring format — keys, aliases, region fan-out, records with
+> dispersion, and the validation hook — is documented in `DATASETS.md`. Two
+> demonstration datasets ship in `datasets/`: the shear-modulus demo and the
+> whole-body passive-stiffness atlas.
 
 An overlay is a flat map from anatomical ID to a number. That is the entire contract, and it is
 deliberately the smallest one that can work: what an external tool has to produce is a list of names
@@ -585,6 +615,12 @@ capability and never touches a feature. To make it real:
    entitlement can be edited, so the claim has to be issued by something the user does not control.
 3. Point `subscribe` at the payment provider's hosted checkout. The subscription arrives by webhook;
    the next claim refresh carries it.
+
+With Stripe as the reference provider that means: `subscribe` opens a Checkout Session created by
+your backend, the `checkout.session.completed` and `customer.subscription.*` webhooks update the
+billing record, and the backend folds the subscription state into the claim it issues — `expires`
+mirrors `current_period_end`, so a cancelled-at-period-end seat keeps working until it lapses and
+then degrades on read, which the UI already handles.
 
 Nothing else changes. The three provider buttons, the plan cards, the cancel-at-period-end behaviour
 and the licence-key path are already wired to that shape. Offline and institutional seats keep the

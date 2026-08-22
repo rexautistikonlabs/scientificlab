@@ -184,6 +184,7 @@ export class Hud {
       ['tris', 'tris'],
       ['field', 'endings'],
       ['beads', 'beads'],
+      ['cell', 'cell crowd'],
       ['geom', 'geometry'],
     ];
     for (const [id, label] of rows) {
@@ -233,7 +234,7 @@ export class Hud {
       .join('');
   }
 
-  updatePerf({ quality, info, cpuMs, endings, beads, decisions }) {
+  updatePerf({ quality, info, cpuMs, endings, beads, decisions, cell }) {
     if (!this.perfPanel || this.perfPanel.hidden) return;
     const buffer = this._buffer || '—';
     this._decisions = decisions;
@@ -248,6 +249,15 @@ export class Hud {
     this._setPerfRow('tris', `${(info.render.triangles / 1000).toFixed(0)}k`);
     this._setPerfRow('field', String(endings));
     this._setPerfRow('beads', String(beads));
+    /* The cellular crowd is the single largest instanced cost in the product,
+       so a tester watching frame times at the Cell tier needs to see what the
+       quality tier has actually granted — "drawn / full" plus how far into the
+       tier the crossfade is. A dash means the tier is not in view and the
+       crowd costs nothing. */
+    this._setPerfRow(
+      'cell',
+      cell && cell.blend > 0.01 ? `${cell.drawn}/${cell.full} · blend ${cell.blend.toFixed(2)}` : '—'
+    );
     this._setPerfRow('geom', quality.geometry);
     this.perfNote.textContent = quality.shortfall
       ? 'Geometry was tessellated for the detected hardware; reload to rebuild it at full detail.'

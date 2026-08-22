@@ -85,6 +85,7 @@ const CROWD_FRAG = /* glsl */ `
   precision highp float;
   uniform vec3  uCamPos;
   uniform float uCutDist;
+  uniform float uSlabFar;
   uniform float uOpacity;
   varying vec3 vCol;
   varying vec3 vNrm;
@@ -105,6 +106,16 @@ const CROWD_FRAG = /* glsl */ `
     vec3 hemi = mix(vec3(0.16, 0.10, 0.09), vec3(0.10, 0.14, 0.19), N.y * 0.5 + 0.5);
     float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.5);
     vec3 col = vCol * (wrap * 0.95 + 0.26) + vCol * hemi + vCol * fres * 0.5;
+
+    /* The optical plane of interest. A microscope has one; a naked z-buffer
+       does not. Complexes behind the focal region sink toward the ground
+       colour rather than staying at full brilliance, which is what stops the
+       packed interior from reading as a flat wall of confetti — depth becomes
+       legible without a depth-of-field pass the low tiers could not afford. */
+    if (uCutDist > 0.0) {
+      float fog = smoothstep(uSlabFar * 0.55, uSlabFar * 1.25, d);
+      col = mix(col, vec3(0.012, 0.015, 0.024), fog * 0.85);
+    }
     gl_FragColor = vec4(col, uOpacity);
     #include <colorspace_fragment>
   }
@@ -118,6 +129,7 @@ function crowdMaterial() {
       uTime: GLOBAL.uTime,
       uCamPos: GLOBAL.uCamPos,
       uCutDist: GLOBAL.uCutDist,
+      uSlabFar: GLOBAL.uSlabFar,
       uJitter: { value: 0.15 },
       uOpacity: { value: 1 },
     },
@@ -172,19 +184,34 @@ function randQuat(r) {
   return new THREE.Quaternion(a * Math.sin(u2), a * Math.cos(u2), b * Math.sin(u3), b * Math.cos(u3));
 }
 
-/* Molecular palette — one hue per family, weighted the way the cytoplasm is
-   actually dominated (ribosomes everywhere). Colours are identification aids
-   in the tradition of cell-landscape illustration, not measurements. */
-const CYTO_PALETTE = [
-  { c: 0xf2b23c, w: 0.34 }, // ribosomes
-  { c: 0xd94f70, w: 0.1 },  // proteasomes
-  { c: 0x46c8b4, w: 0.1 },  // chaperonins
-  { c: 0x9ee04c, w: 0.08 }, // motor proteins
-  { c: 0x7f6ff0, w: 0.1 },  // polymerases & large complexes
-  { c: 0xe07b3c, w: 0.11 }, // metabolic enzymes
-  { c: 0x58a8f0, w: 0.09 }, // signalling proteins
-  { c: 0xe8e0c8, w: 0.08 }, // glycogen granules
+/* Molecular families — one hue AND one size band per family, weighted the way
+   the cytoplasm is actually dominated (ribosomes everywhere). Colour alone was
+   not enough: with every family drawn at the same random sizes the interior
+   read as confetti. Size is the second identification channel — the big violet
+   assemblies read as machines, the small amber grain reads as ribosomes — and
+   shape is the third (barrels and motors are rods). Identification aids in the
+   tradition of cell-landscape illustration, not measurements. */
+const CYTO_FAMILIES = [
+  { name: 'ribosomes', c: 0xeaa62e, w: 0.4, s: [0.012, 0.019], shape: 'ico' },
+  { name: 'proteasomes', c: 0xd94f70, w: 0.09, s: [0.018, 0.026], shape: 'rod' },
+  { name: 'chaperonins', c: 0x3cc8b0, w: 0.09, s: [0.019, 0.026], shape: 'ico' },
+  { name: 'motor proteins', c: 0x9ee04c, w: 0.07, s: [0.013, 0.019], shape: 'rod' },
+  // fuchsia, not violet — violet is the chromatin's hue, and the nucleus must
+  // stay the only violet mass in the frame
+  { name: 'large assemblies', c: 0xc44ad0, w: 0.07, s: [0.027, 0.042], shape: 'ico' },
+  { name: 'metabolic enzymes', c: 0xe07b3c, w: 0.12, s: [0.011, 0.017], shape: 'ico' },
+  { name: 'signalling proteins', c: 0x58a8f0, w: 0.1, s: [0.01, 0.015], shape: 'ico' },
+  { name: 'glycogen granules', c: 0xe9e3d2, w: 0.06, s: [0.007, 0.012], shape: 'ico' },
 ];
+
+function pickFamily(r) {
+  let t = r();
+  for (const f of CYTO_FAMILIES) {
+    t -= f.w;
+    if (t <= 0) return f;
+  }
+  return CYTO_FAMILIES[0];
+}
 const NUCLEUS_PALETTE = [
   { c: 0x8a76e8, w: 0.5 },
   { c: 0x6a5ae0, w: 0.3 },
@@ -328,6 +355,16 @@ export function buildCellscape() {
     microBlob(MEM.a * S, MEM.b * S, MEM.c * S, 28),
     { color: 0xd8b49a, opacity: 0.36, rough: 0.6, spec: 0.3, rim: 0.9, mode: 'xray', xrayFloor: 0.05, doubleSide: true, sss: 0.5, wobble: S * 0.012 },
     8
+  );
+  /* Actin cortex gel, just inside the membrane. Crossing into the cell should
+     read as passing a *boundary layer*, not popping through one flat wall —
+     two close surfaces sliding past each other at different rates is the
+     cheapest parallax that says "you are now inside". */
+  addMesh(
+    subject,
+    microBlob(MEM.a * S * 0.955, MEM.b * S * 0.955, MEM.c * S * 0.955, 22),
+    { color: 0xa8d8cc, opacity: 0.12, rough: 0.7, spec: 0.2, rim: 1.3, mode: 'xray', xrayFloor: 0.03, doubleSide: true, sss: 0.3 },
+    7
   );
 
   /* ---- nucleus: envelope, chromatin crowd, nucleolus ---- */
@@ -481,24 +518,24 @@ export function buildCellscape() {
   const rod = new THREE.CylinderGeometry(0.38, 0.38, 2.3, 5, 1, false);
 
   {
-    const items = [];
-    for (let k = 0; k < 5200; k++) {
-      items.push({ p: cytoPoint(r), s: S * (0.016 + 0.03 * r() * r()), c: pick(CYTO_PALETTE, r), q: randQuat(r) });
+    const icoItems = [];
+    const rodItems = [];
+    for (let k = 0; k < 6800; k++) {
+      const f = pickFamily(r);
+      const item = {
+        p: cytoPoint(r),
+        s: S * lerp(f.s[0], f.s[1], r()),
+        c: new THREE.Color(f.c),
+        q: randQuat(r),
+      };
+      (f.shape === 'rod' ? rodItems : icoItems).push(item);
     }
-    const m = crowdMesh(ico, items);
-    m.renderOrder = 1;
-    subject.add(m);
-    crowds.push(m);
-  }
-  {
-    const items = [];
-    for (let k = 0; k < 700; k++) {
-      items.push({ p: cytoPoint(r), s: S * (0.014 + 0.02 * r()), c: pick(CYTO_PALETTE, r), q: randQuat(r) });
+    for (const [base, items] of [[ico, icoItems], [rod, rodItems]]) {
+      const m = crowdMesh(base, items);
+      m.renderOrder = 1;
+      subject.add(m);
+      crowds.push(m);
     }
-    const m = crowdMesh(rod, items);
-    m.renderOrder = 1;
-    subject.add(m);
-    crowds.push(m);
   }
   {
     // chromatin — the nuclear crowd

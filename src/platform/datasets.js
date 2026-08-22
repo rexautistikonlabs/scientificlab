@@ -117,6 +117,11 @@ export const BUNDLED_DATASETS = Object.freeze([
     label: 'Shear modulus (demo)',
     note: 'Synthetic elastography-style export, to demonstrate the format.',
   },
+  {
+    url: 'datasets/passive-stiffness-atlas.json',
+    label: 'Passive stiffness atlas (demo)',
+    note: 'Synthetic whole-body myotonometry-style atlas — exercises records, aliases, region fan-out and unresolved reporting. See DATASETS.md.',
+  },
 ]);
 
 /**

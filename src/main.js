@@ -287,6 +287,9 @@ async function main() {
         textures: renderer.info.memory.textures,
         endingsDrawn: receptors.populations.reduce((n, p) => n + (p.drawn ?? p.count), 0),
         beadsDrawn: signals.drawn,
+        /* the Cell tier's cost, so a report from a machine that struggled
+           there says how much crowd it was actually drawing */
+        cell: { ...cell.state(), blend: +scales.cellBlend.toFixed(2) },
       },
       simulation: {
         cpuMsPerFrame: +cpuMs.toFixed(3),
@@ -1219,6 +1222,7 @@ async function main() {
       panels.tick();
       hud.microVisible(store.micro.active && !!microSpindle?.resolved);
       if (microSpindle) hud.updateMicro(microSpindle);
+      const cellState = cell.state();
       hud.updatePerf({
         quality: qualityCtl.stats(),
         info: renderer.info,
@@ -1226,6 +1230,7 @@ async function main() {
         endings: receptors.populations.reduce((n, p) => n + (p.drawn ?? p.count), 0),
         beads: signals.drawn,
         decisions: qualityCtl.decisions,
+        cell: { drawn: cellState.crowdDrawn, full: cellState.crowdFull, blend: scales.cellBlend },
       });
       uiAcc = 0;
     }
