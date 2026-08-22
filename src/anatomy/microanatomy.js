@@ -283,6 +283,239 @@ const BUILDERS = {
 };
 
 /* ------------------------------------------------------------
+   Tissue context beds.
+
+   A receptor drawn alone in a black field is a diagram, not anatomy: every one
+   of these endings is defined by the tissue it is embedded in. Each context is
+   the *minimum* surrounding that makes the ending's situation legible — the
+   extrafusal fascicles a spindle lies in parallel with, the epidermal ridges a
+   Meissner corpuscle pushes into, the tendon a Golgi organ is woven through.
+   Everything is procedural, merged into a handful of draw calls, and fades in
+   with the same blend as the subject. Context is presentation only: nothing
+   here is bound to the solver, nothing is pickable, and nothing carries an ID —
+   it is the stage, not an actor.
+   ------------------------------------------------------------ */
+
+/** A wavy tissue fibre running along Y. */
+function contextFibre(S, r, { rad, ang, len, radius, wave = 0.02, y0 = 0 }) {
+  const pts = [];
+  const n = 8;
+  const phase = r() * TAU;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const y = y0 + (t - 0.5) * len;
+    pts.push(
+      V(
+        Math.cos(ang) * rad + Math.sin(t * 3.1 + phase) * S * wave,
+        y,
+        Math.sin(ang) * rad + Math.cos(t * 2.6 + phase) * S * wave
+      )
+    );
+  }
+  return tube(pts, () => radius, 6);
+}
+
+/** An undulating epidermal roof with ridge rows, for the cutaneous classes. */
+function epidermisSheet(S, { w, y, amp, ridges = 7 }) {
+  const half = w / 2;
+  const geo = sheetGrid(18, 18, (u, v, out) => {
+    const x = (u - 0.5) * w;
+    const z = (v - 0.5) * w;
+    const ridge = Math.sin(u * Math.PI * ridges) * Math.cos(v * Math.PI * 2.2) * amp;
+    const sag = -Math.pow((x * x + z * z) / (half * half), 1.5) * amp * 0.6;
+    out.set(x, y + ridge + sag, z);
+  });
+  return geo;
+}
+
+/** Minimal parametric grid — local so this module owns its own context shapes. */
+function sheetGrid(nu, nv, fn) {
+  const verts = [];
+  const uvs = [];
+  const idx = [];
+  const out = new THREE.Vector3();
+  for (let i = 0; i <= nu; i++) {
+    for (let j = 0; j <= nv; j++) {
+      fn(i / nu, j / nv, out);
+      verts.push(out.x, out.y, out.z);
+      uvs.push(i / nu, j / nv);
+    }
+  }
+  const row = nv + 1;
+  for (let i = 0; i < nu; i++)
+    for (let j = 0; j < nv; j++) {
+      const a = i * row + j;
+      idx.push(a, a + row, a + row + 1, a, a + row + 1, a + 1);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+const MUSCLE_BED = { color: 0xa63a44, opacity: 0.46, rough: 0.5, spec: 0.3, rim: 0.8, mode: 'xray', xrayFloor: 0.14, doubleSide: true, stripe: 0.7, stripeFreq: 30, sss: 0.3 };
+const COLLAGEN_BED = { color: 0xd9cfae, opacity: 0.44, rough: 0.6, spec: 0.28, rim: 0.9, mode: 'xray', xrayFloor: 0.12, doubleSide: true, stripe: 0.55, stripeFreq: 22, sss: 0.35 };
+const DERMIS_BED = { color: 0xe0b090, opacity: 0.22, rough: 0.85, spec: 0.12, rim: 0.9, mode: 'xray', xrayFloor: 0.07, doubleSide: true, sss: 0.55 };
+
+const CONTEXTS = {
+  /* The spindle lies in parallel with the extrafusal fascicles — that parallel
+     arrangement is the entire mechanical premise of the receptor, so the bed
+     around it *is* the lesson. The fibres share the group's live axial stretch. */
+  spindle(S) {
+    const r = rng(1211);
+    const fibres = [];
+    for (let k = 0; k < 30; k++) {
+      const rad = S * (0.16 + 0.62 * Math.pow(r(), 0.7));
+      fibres.push(
+        contextFibre(S, r, {
+          rad,
+          ang: r() * TAU,
+          len: S * (1.5 + 0.7 * r()),
+          radius: S * (0.02 + 0.022 * r()),
+          y0: (r() - 0.5) * S * 0.3,
+        })
+      );
+    }
+    const sheathAxis = [];
+    const sheathProf = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12;
+      const k = 0.72 + 0.28 * Math.sin(t * Math.PI);
+      sheathAxis.push(V(0, (t - 0.5) * S * 2.1, 0));
+      sheathProf.push({ a: S * 0.92 * k, b: S * 0.92 * k, n: 2 });
+    }
+    return [
+      { geom: merge(fibres), opts: MUSCLE_BED },
+      {
+        geom: loft(sheathAxis, sheathProf, 18, { capStart: false, capEnd: false }),
+        opts: { color: 0xd8e8ee, opacity: 0.07, rough: 0.7, spec: 0.15, rim: 0.7, mode: 'xray', xrayFloor: 0.04, doubleSide: true },
+        order: 0,
+      },
+    ];
+  },
+
+  /* The Golgi organ sits at the muscle–tendon junction: muscle red arriving
+     from one pole, tendon cream leaving the other. */
+  golgi(S) {
+    const r = rng(407);
+    const tendon = [];
+    const muscle = [];
+    for (let k = 0; k < 16; k++) {
+      const ang = r() * TAU;
+      const rad = S * (0.08 + 0.3 * r());
+      const splay = 1 + r() * 0.7;
+      tendon.push(
+        contextFibre(S, r, { rad: rad * splay, ang, len: S * 2.2, radius: S * (0.02 + 0.014 * r()), y0: -S * 1.35, wave: 0.008 })
+      );
+      muscle.push(
+        contextFibre(S, r, { rad: rad * splay, ang, len: S * 2.0, radius: S * (0.028 + 0.02 * r()), y0: S * 1.3, wave: 0.02 })
+      );
+    }
+    return [
+      { geom: merge(tendon), opts: COLLAGEN_BED },
+      { geom: merge(muscle), opts: MUSCLE_BED },
+    ];
+  },
+
+  /* Deep subcutis: fat lobules and crossing collagen septa, with the dermal
+     floor far overhead — a Pacinian corpuscle lives deep, and the empty
+     distance to the surface is part of what it is. */
+  pacinian(S) {
+    const r = rng(902);
+    const lobules = [];
+    for (let k = 0; k < 9; k++) {
+      const b = blob(S * (0.4 + 0.3 * r()), S * (0.3 + 0.2 * r()), S * (0.4 + 0.3 * r()), 8);
+      place(b, { pos: [(r() - 0.5) * S * 3.4, -S * 0.4 - r() * S * 1.6, (r() - 0.5) * S * 3.4] });
+      lobules.push(b);
+    }
+    const septa = [];
+    for (let k = 0; k < 8; k++) {
+      septa.push(
+        contextFibre(S, r, { rad: S * (0.5 + 1.1 * r()), ang: r() * TAU, len: S * 3.4, radius: S * 0.028, wave: 0.06 })
+      );
+    }
+    return [
+      { geom: merge(lobules), opts: { color: 0xe8cf9e, opacity: 0.1, rough: 0.9, spec: 0.08, rim: 0.8, mode: 'xray', xrayFloor: 0.05, doubleSide: true, sss: 0.5 } },
+      { geom: merge(septa), opts: COLLAGEN_BED },
+      { geom: epidermisSheet(S, { w: S * 6.4, y: S * 2.4, amp: S * 0.12, ridges: 8 }), opts: DERMIS_BED, order: 0 },
+    ];
+  },
+
+  /* A Meissner corpuscle sits inside a dermal papilla, pressed up against the
+     ridged underside of the epidermis — the roof is nearly touching. */
+  meissner(S) {
+    const r = rng(311);
+    const wisps = [];
+    for (let k = 0; k < 10; k++) {
+      wisps.push(
+        contextFibre(S, r, { rad: S * (0.45 + 0.8 * r()), ang: r() * TAU, len: S * 1.9, radius: S * 0.02, wave: 0.08, y0: -S * 0.4 })
+      );
+    }
+    return [
+      { geom: epidermisSheet(S, { w: S * 4.6, y: S * 0.72, amp: S * 0.22, ridges: 6 }), opts: { ...DERMIS_BED, opacity: 0.2 }, order: 0 },
+      { geom: merge(wisps), opts: COLLAGEN_BED },
+    ];
+  },
+
+  /* Ruffini endings anchor to the collagen field around them: the external
+     wisps continue the internal strands, so stretch has somewhere to come from. */
+  ruffini(S) {
+    const r = rng(555);
+    const wisps = [];
+    for (let k = 0; k < 12; k++) {
+      const g = contextFibre(S, r, { rad: S * (0.2 + 0.5 * r()), ang: r() * TAU, len: S * 2.6, radius: S * 0.018, wave: 0.03 });
+      // the capsule's long axis is Y; keep the field loosely aligned with it
+      place(g, { rot: [0, 0, (r() - 0.5) * 0.5] });
+      wisps.push(g);
+    }
+    return [
+      { geom: merge(wisps), opts: COLLAGEN_BED },
+      { geom: epidermisSheet(S, { w: S * 5.2, y: S * 1.7, amp: S * 0.14, ridges: 7 }), opts: DERMIS_BED, order: 0 },
+    ];
+  },
+
+  /* Free endings arborise just under the epidermis, among fine collagen. */
+  free(S) {
+    const r = rng(83);
+    const wisps = [];
+    for (let k = 0; k < 8; k++) {
+      wisps.push(
+        contextFibre(S, r, { rad: S * (0.5 + 0.9 * r()), ang: r() * TAU, len: S * 2.4, radius: S * 0.02, wave: 0.06 })
+      );
+    }
+    return [
+      { geom: epidermisSheet(S, { w: S * 5.4, y: S * 1.1, amp: S * 0.2, ridges: 6 }), opts: { ...DERMIS_BED, opacity: 0.18 }, order: 0 },
+      { geom: merge(wisps), opts: COLLAGEN_BED },
+    ];
+  },
+
+  /* The visceral terminal already lies on its serosal membrane; give it the
+     capillary bed that always accompanies one, and a second membrane below. */
+  intero(S) {
+    const r = rng(219);
+    const caps = [];
+    for (let k = 0; k < 6; k++) {
+      const pts = [];
+      const z0 = (r() - 0.5) * S * 3.4;
+      for (let i = 0; i <= 14; i++) {
+        const t = i / 14;
+        pts.push(V(lerp(-S * 2.6, S * 2.6, t), -S * 0.16 + Math.sin(t * 7 + k * 2.1) * S * 0.1, z0 + Math.sin(t * 4 + k) * S * 0.4));
+      }
+      caps.push(tube(pts, () => S * 0.035, 5));
+    }
+    const under = new THREE.PlaneGeometry(S * 7, S * 7, 4, 4);
+    under.rotateX(-Math.PI / 2);
+    under.translate(0, -S * 0.5, 0);
+    return [
+      { geom: merge(caps), opts: { color: 0xe8506b, opacity: 0.4, rough: 0.4, spec: 0.4, rim: 0.9, mode: 'xray', xrayFloor: 0.12, doubleSide: true, sss: 0.4 } },
+      { geom: under, opts: { color: 0x9fb8d8, opacity: 0.1, rough: 0.8, spec: 0.1, rim: 0.8, mode: 'xray', xrayFloor: 0.05, doubleSide: true } },
+    ];
+  },
+};
+
+/* ------------------------------------------------------------
    Assembly
    ------------------------------------------------------------ */
 
@@ -303,22 +536,34 @@ export function buildMicroAnatomy() {
     const built = BUILDERS[id](S);
     const g = new THREE.Group();
     g.visible = false;
+    /* The subject is what framing measures; the context is the tissue bed it
+       sits in. Split so the camera frames the *ending* and the bed reads as
+       surroundings extending past the frame — framing the union would pull the
+       camera back until the lesson is a wide shot of scenery. */
+    const subject = new THREE.Group();
+    subject.name = 'subject';
+    const context = new THREE.Group();
+    context.name = 'context';
+    g.add(subject, context);
 
     const mats = [];
     if (built.lamellae) {
       const m = tissueMaterial({
         color: new THREE.Color(def.color).getHex(),
-        opacity: 0.3,
+        /* Presence raised from the first pass — the capsule is the organ of the
+           lesson, and at 0.3 it read as a hint of smoke around the coil. */
+        opacity: 0.44,
         rough: 0.4,
         spec: 0.5,
         rim: 1.5,
         mode: 'xray',
         doubleSide: true,
+        sss: 0.5,
         disp: 0,
       });
       const mesh = new THREE.Mesh(stripBind(built.lamellae), m);
       mesh.renderOrder = 3;
-      g.add(mesh);
+      subject.add(mesh);
       mats.push(m);
     }
     if (built.collagen) {
@@ -332,11 +577,12 @@ export function buildMicroAnatomy() {
         doubleSide: true,
         stripe: 0.5,
         stripeFreq: 60,
+        sss: 0.4,
         disp: 0,
       });
       const mesh = new THREE.Mesh(stripBind(built.collagen), m);
       mesh.renderOrder = 2;
-      g.add(mesh);
+      subject.add(mesh);
       mats.push(m);
     }
     if (built.axon) {
@@ -344,15 +590,34 @@ export function buildMicroAnatomy() {
       m.uniforms.uLocalDisp.value = 0;
       const mesh = new THREE.Mesh(stripBind(built.axon), m);
       mesh.renderOrder = 4;
-      g.add(mesh);
+      subject.add(mesh);
       mats.push(m);
     }
 
+    const bed = CONTEXTS[id]?.(S, def);
+    if (bed) {
+      for (const part of bed) {
+        if (!part?.geom) continue;
+        const m = tissueMaterial({ disp: 0, ...part.opts });
+        const mesh = new THREE.Mesh(stripBind(part.geom), m);
+        mesh.renderOrder = part.order ?? 1;
+        context.add(mesh);
+        mats.push(m);
+      }
+    }
+
     root.add(g);
-    models.set(id, { id, def, group: g, materials: mats, size: S });
+    models.set(id, { id, def, group: g, subject, context, materials: mats, size: S });
   }
 
-  return { root, models };
+  /* Quality lever: the beds are pure presentation, so the weakest tier simply
+     does not draw them. Everything else about the mode — the subject, the
+     read-out, the spike raster — is identical on every tier. */
+  const setDetail = (f) => {
+    for (const [, m] of models) m.context.visible = f >= 0.35;
+  };
+
+  return { root, models, setDetail };
 }
 
 /** Micro models are not part of the network solve, so give them neutral bindings. */

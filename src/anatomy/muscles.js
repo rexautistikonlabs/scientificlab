@@ -18,13 +18,18 @@ import { LM, side, ribPoints, trunkSurface } from './landmarks.js';
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 const MUSCLE = {
-  color: 0xc74a52,
+  color: 0xb8434e,
   opacity: 0.9,
-  rough: 0.62,
-  spec: 0.22,
+  /* Wetter and more fibrous than the first pass: living muscle under a lamp is
+     glossy along the fascicles, and the striation is what says which way the
+     belly pulls. The stripe count is per girth, not per length — see the fibre
+     note in materials.js. */
+  rough: 0.5,
+  spec: 0.3,
   rim: 0.4,
-  stripe: 0.42,
-  stripeFreq: 90,
+  stripe: 0.58,
+  stripeFreq: 64,
+  sss: 0.3,
 };
 
 /**
@@ -438,7 +443,10 @@ export function muscleTable() {
 
 export function buildMuscles(ctx) {
   const { add, mat, q } = ctx;
-  const seg = q.high ? 14 : 10;
+  /* Belly silhouettes are where coarse tessellation reads as a bug: a long
+     fusiform loft at 14 stations shows its stations as kinks in the profile
+     curve at region scale. The full build spends its extra vertices here. */
+  const seg = q.high ? 20 : 10;
 
   for (const m of table()) {
     const sides = m.bilateral ? [1, -1] : [0];
@@ -474,7 +482,7 @@ export function buildMuscles(ctx) {
         // round one or the silhouette facets show
         const flat = m.flat ?? 1;
         geom = muscleBelly(pts, m.r, {
-          radial: Math.round((q.high ? 12 : 9) + flat * 3),
+          radial: Math.round((q.high ? 16 : 9) + flat * (q.high ? 5 : 3)),
           flat,
           peak: m.peak ?? 0.45,
           tendon: 0.2,

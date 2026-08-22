@@ -438,7 +438,9 @@ export function buildNeuro(ctx) {
         group: t.group,
         region: t.region,
         side: s,
-        geometry: tube(pts, () => t.r, 8),
+        // the named trunks are what the organ tier frames — 8 radial segments
+        // showed their cross-section as a hexagonal plug at that distance
+        geometry: tube(pts, () => t.r, q.high ? 12 : 8),
         material: mat({ ...NERVE, rate: 3.5, speed: t.speed, nerve: true }),
         center: pts[Math.floor(pts.length / 2)].clone(),
         span: 0.4,

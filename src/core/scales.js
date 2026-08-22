@@ -224,7 +224,18 @@ export class ScaleManager {
       pop.material.uniforms.uSize.value = receptorSize(pop, t);
       const on = this.store.receptorFilter.has(pop.id) && this.store.effectiveOpacity('receptor') > 0.004;
       pop.mesh.visible = on;
-      if (on) pop.material.uniforms.uOpacity.value = this.store.effectiveOpacity('receptor');
+      if (on) {
+        /* The glyphs are exaggerated markers, and at whole-body view a thousand
+           of them at full weight read as confetti scattered over the figure.
+           Fade them up as the scale approaches the tissues they live in — the
+           switch itself still belongs to the user; this only weights it.
+           Inside Microscope mode they nearly vanish: the modelled ending is the
+           subject there, and an exaggerated marker pill at a sub-millimetre
+           span is a wall in front of it. */
+        const focus = lerp(0.3, 1, smootherstep(clamp((t - 0.7) / 1.5, 0, 1)));
+        const inMicro = this.store.micro.active ? 0.12 : 1;
+        pop.material.uniforms.uOpacity.value = this.store.effectiveOpacity('receptor') * focus * inMicro;
+      }
     }
 
     /* ---- signal particle scaling ---- */
@@ -256,8 +267,12 @@ export class ScaleManager {
     }
     if (m.active && !wasActive) this._frameMicroSubject();
 
-    /* ---- micro-anatomy ---- */
-    const microBlend = smootherstep(clamp((t - 3.15) / 0.75, 0, 1));
+    /* ---- micro-anatomy ----
+       The blend leads the mode: it starts a third of the way through the Tissue
+       tier, so the fascicle bed and the ending materialise while you are still
+       descending — the tissue tier shows tissue instead of the empty gap that
+       used to sit between the organ view and the receptor view. */
+    const microBlend = smootherstep(clamp((t - 2.65) / 0.65, 0, 1));
     const wantMicro = microBlend > 0.01 || this.store.micro.active;
     this.micro.root.visible = wantMicro;
     if (wantMicro) {
@@ -266,7 +281,12 @@ export class ScaleManager {
         for (const [, m] of this.micro.models) m.group.visible = false;
         const m = this.micro.models.get(id);
         if (m) m.group.visible = true;
+        const refit = this._microActive !== null && this.store.micro.active;
         this._microActive = id;
+        /* Each class has its own physical size — a Pacinian corpuscle is a
+           sixth of a spindle. Left at the previous subject's framing, a smaller
+           ending is a speck; re-frame on the switch, exactly as on entry. */
+        if (refit) this._frameMicroSubject(true);
       }
       // sit the model at the camera's look-at point, standing upright but turned
       // to face the viewer so its internal structure reads
@@ -306,7 +326,9 @@ export class ScaleManager {
     const wasVisible = model.group.visible;
     model.group.visible = true;
     model.group.updateMatrixWorld(true);
-    this._box.setFromObject(model.group);
+    // frame the ending itself, not its tissue bed — the bed is scenery that
+    // should extend past the frame, and framing the union is a wide shot of it
+    this._box.setFromObject(model.subject || model.group);
     model.group.visible = wasVisible;
     this._box.getSize(this._vec);
     const s = model.group.scale;
@@ -330,13 +352,21 @@ export class ScaleManager {
    * afterwards is the user's business and is left alone; this is the framing the
    * mode opens with, not a leash.
    */
-  _frameMicroSubject() {
+  /**
+   * @param {boolean} fit  false (entry): only widen, never steal a zoom the
+   *                       user already made. true (subject switch): fly to the
+   *                       new subject's own span in either direction, because
+   *                       the previous framing belonged to a different-sized
+   *                       ending and keeping it leaves a speck or a wall.
+   */
+  _frameMicroSubject(fit = false) {
     const model = this.micro.models.get(this.store.microFocus);
     if (!model) return;
     const extent = this._extentOf(model);
     if (!extent) return;
     const want = extent * MICRO_FRAME_MARGIN;
-    if (this.controls.span >= want * 0.98) return;
+    if (!fit && this.controls.span >= want * 0.98) return;
+    if (fit && Math.abs(this.controls.span / want - 1) < 0.12) return;
     this.controls.flyTo({ span: want, duration: 0.9 });
   }
 

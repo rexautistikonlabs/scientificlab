@@ -22,7 +22,10 @@ import { lerp } from '../core/util.js';
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 const SUP = { color: 0x79e6cf, opacity: 0.2, rough: 0.8, spec: 0.1, rim: 0.9, mode: 'xray', doubleSide: true };
-const DEEP = { color: 0x4fd6e0, opacity: 0.5, rough: 0.55, spec: 0.3, rim: 0.85, mode: 'xray', doubleSide: true, stripe: 0.3, stripeFreq: 220 };
+/* Striation counts are per ribbon width since the fibre-direction fix in
+   materials.js — the old 220 was per length, and per width it aliases into
+   white sparkle at region distance. */
+const DEEP = { color: 0x4fd6e0, opacity: 0.5, rough: 0.55, spec: 0.3, rim: 0.85, mode: 'xray', doubleSide: true, stripe: 0.3, stripeFreq: 26 };
 const VISC = { color: 0x78c0ff, opacity: 0.34, rough: 0.7, spec: 0.2, rim: 1.0, mode: 'xray', doubleSide: true };
 
 export function buildFascia(ctx) {
@@ -445,7 +448,7 @@ export function buildFascia(ctx) {
         xrayFloor: 0.62, // a thin ribbon must read face-on, not only at its edge
         doubleSide: true,
         stripe: 0.5,
-        stripeFreq: 420,
+        stripeFreq: 30,
       }),
       center: pts[Math.floor(pts.length / 2)].clone(),
       span: 1.2,

@@ -129,7 +129,7 @@ const LIGHT_CHUNK = /* glsl */ `
   float cutFade(float camDist) {
     if (uCutDist <= 0.0) return 1.0;
     float front = smoothstep(uCutDist, uCutDist * 1.18, camDist);
-    float back = 1.0 - smoothstep(uSlabFar, uSlabFar * 1.55, camDist);
+    float back = 1.0 - smoothstep(uSlabFar, uSlabFar * 1.38, camDist);
     return front * back;
   }
 
@@ -141,7 +141,14 @@ const LIGHT_CHUNK = /* glsl */ `
     float nr = max(dot(N, RIM_DIR), 0.0);
 
     vec3 diff = albedo * (KEY_COL * wrapK * 0.78 + FILL_COL * nf * 0.42 + RIM_COL * nr * 0.24);
-    diff += albedo * 0.09; // ambient floor
+    /* Hemisphere ambient in place of the old flat floor. The same average
+       energy, but split between a cool skylight from above and a warm
+       tissue-bounce from below, so a surface in the shadow of all three lights
+       still states which way it faces. This is what keeps the interior of the
+       trunk from collapsing into one value at the organ tier — and it costs a
+       mix() where the flat floor cost a multiply. */
+    vec3 hemi = mix(vec3(0.075, 0.045, 0.038), vec3(0.058, 0.075, 0.097), N.y * 0.5 + 0.5);
+    diff += albedo * hemi;
 
     /* Low tier: the full three-light rig, minus the specular term only.
        The first version of this dropped the fill and rim lights and kept the
@@ -155,7 +162,12 @@ const LIGHT_CHUNK = /* glsl */ `
 
     float shin = mix(96.0, 10.0, rough);
     vec3 h = normalize(KEY_DIR + V);
-    float s = pow(max(dot(N, h), 0.0), shin) * spec;
+    float ndh = max(dot(N, h), 0.0);
+    /* Two lobes from one half-vector: the tight glint of a wet membrane plus a
+       broad low sheen that follows the form. Living tissue is never dry, and a
+       single tight lobe reads as lacquer while sheen alone reads as chalk; the
+       pair is the cheapest combination that reads as moisture. One extra pow(). */
+    float s = pow(ndh, shin) * spec + pow(ndh, shin * 0.2) * spec * 0.14;
     return diff + KEY_COL * s;
   }
 
@@ -198,6 +210,7 @@ const TISSUE_FRAG = /* glsl */ `
   uniform float uXrayFloor;   // how much a face-on surface still contributes
   uniform float uOverlay;     // 1 = a research dataset is painted on this structure
   uniform vec3  uOverlayColor;
+  uniform float uSSS;         // subsurface transmission strength, 0 = off
   uniform vec3  uCamPos;
   uniform float uAlphaCut;    // quality: see the cut below
 
@@ -250,10 +263,15 @@ const TISSUE_FRAG = /* glsl */ `
        stays the single source of mechanical truth. */
     if (uOverlay > 0.5) albedo = mix(albedo, uOverlayColor, 0.88);
 
-    // fibre striation — reads as collagen / muscle direction under the light
+    /* Fibre striation. The bands vary *around* the girth (u) and run along the
+       axis (v), because that is the direction muscle fascicles and collagen
+       bundles actually run — the first version varied along v, which drew rings
+       around every belly like a worm. The slow v term shears the bands a few
+       degrees off axis so they read as fibres rather than as a printed grid. */
     if (uStripe > 0.001) {
-      float st = sin(vUv.y * uStripeFreq + vUv.x * 3.0) * 0.5 + 0.5;
-      albedo *= mix(1.0, 0.78 + 0.34 * st, uStripe);
+      float st = sin(vUv.x * uStripeFreq + vUv.y * 5.0) * 0.5 + 0.5;
+      // darken-only: fibre grooves shade, they do not glow
+      albedo *= mix(1.0, 0.68 + 0.32 * st, uStripe);
     }
 
     vec3 col;
@@ -268,6 +286,19 @@ const TISSUE_FRAG = /* glsl */ `
     } else {
       col = shade(N, V, albedo, uRough, uSpec);
       col += albedo * fres * uRim * 0.6;
+    }
+
+    /* Subsurface transmission — the light of the key lamp arriving *through*
+       the tissue when the surface sits between it and the camera. Squaring the
+       albedo is the point: transmitted light has been filtered by the tissue
+       twice, so it comes out more saturated than the surface, which is exactly
+       how a lit ear or a stretched fascia behaves. Strongest at grazing
+       incidence (thin path), gated with the specular path so the Low tier pays
+       nothing. */
+    if (uSSS > 0.001 && uCheapLight < 0.5) {
+      float back = pow(clamp(dot(V, -KEY_DIR), 0.0, 1.0), 2.6);
+      float thin = 1.0 - abs(dot(N, V));
+      col += albedo * albedo * 1.5 * back * (0.3 + 0.7 * thin) * uSSS;
     }
     col += albedo * uEmissive;
 
@@ -307,6 +338,7 @@ const BASE_UNIFORMS = () => ({
   uXrayFloor: { value: 0.07 },
   uOverlay: { value: 0.0 },
   uOverlayColor: { value: new THREE.Color(0x4fd6e0) },
+  uSSS: { value: 0.0 },
   uCamPos: GLOBAL.uCamPos,
   tField: GLOBAL.tField,
   uTime: GLOBAL.uTime,
@@ -342,6 +374,11 @@ export function tissueMaterial(o = {}) {
   u.uFacing.value = o.doubleSide ? 1 : 0;
 
   const xray = o.mode === 'xray';
+  /* Subsurface strength. Translucent shells default to a visible transmission
+     because they are the tissues that are actually thin — fascia, membranes,
+     skin; dense solids keep a trace so a backlit belly still warms at the rim.
+     Builders override per tissue where the default reads wrong. */
+  u.uSSS.value = o.sss ?? (xray ? 0.42 : (o.opacity ?? 1) < 0.995 ? 0.3 : 0.14);
   u.uXray.value = xray ? 1 : 0;
   // thin ribbons (the myofascial lines) need a higher floor or they disappear
   // when seen face-on; broad shells need a very low one

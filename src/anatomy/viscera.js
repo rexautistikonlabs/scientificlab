@@ -17,7 +17,11 @@ import { lerp, TAU } from '../core/util.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
-const ORG = { color: 0xd4796a, opacity: 0.82, rough: 0.7, spec: 0.28, rim: 0.55 };
+/* Serosa-wet: organs carry the strongest dual-lobe specular in the body and a
+   deep transmission, because a living organ surface is a lubricated membrane
+   over vascular tissue — the glint moving with the breath is half of what makes
+   the viscera read as alive rather than moulded. */
+const ORG = { color: 0xd4796a, opacity: 0.82, rough: 0.48, spec: 0.42, rim: 0.55, sss: 0.3 };
 
 export function buildViscera(ctx) {
   const { add, mat, q } = ctx;
@@ -78,7 +82,10 @@ export function buildViscera(ctx) {
       region: 'thoracic',
       side: s,
       geometry: loft(axis, prof, seg, { capStart: false, capEnd: false }),
-      material: mat({ ...ORG, color: 0xd98a92, opacity: 0.42, rim: 0.9, mode: 'xray', doubleSide: true }),
+      /* Rim-dominant and quiet: a lung fills a third of the thoracic frame, and
+         at 0.42 it was most of the organ-tier wash. As an outline it still
+         states its volume while the mediastinum stays readable through it. */
+      material: mat({ ...ORG, color: 0xd98a92, opacity: 0.28, rim: 1.15, mode: 'xray', doubleSide: true }),
       center: V(s * 0.07, 1.32, 0),
       span: 0.28,
       physio: 'lung',

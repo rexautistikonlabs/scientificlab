@@ -51,15 +51,25 @@ const enclosure = (drop, from, over, ret) => (t) => 1 - drop * ramp(t, from, ove
 const SCALE_WEIGHT = {
   skin: (t) => 1 - ramp(t, 0.85, 0.85),
   fasciaSup: (t) => 1 - 0.92 * ramp(t, 1.05, 0.85),
-  bone: enclosure(0.82, 1.35, 0.9, 0.3),
-  muscle: enclosure(0.8, 1.5, 0.95, 0.34),
-  fasciaDeep: enclosure(0.6, 1.6, 1.0, 0.3),
+  /* The deep "returns" are small since the receptor tissue beds landed: the
+     micro-anatomy now supplies the local context at the tissue tier, so the
+     macroscopic shells only need enough presence to say where you are — at the
+     old return weights their x-ray interiors were a full-frame wash at a
+     twelve-millimetre span, because at that distance you are *inside* them. */
+  bone: enclosure(0.82, 1.35, 0.9, 0.12),
+  muscle: enclosure(0.8, 1.5, 0.95, 0.14),
+  fasciaDeep: enclosure(0.7, 1.5, 0.95, 0.12),
+  /* The serous membranes were the one enveloping layer with no weighting at
+     all, and at the organ tier they were most of the wash: pleura and
+     peritoneum surround everything the tier is trying to show. */
+  fasciaVisc: enclosure(0.62, 1.45, 0.8, 0.12),
   // the continuities and the neural tree are subjects of study rather than
-  // enclosure, so they thin gently and keep more of themselves throughout
-  chains: (t) => 1 - 0.5 * ramp(t, 1.9, 1.0),
-  nerve: (t) => 1 - 0.55 * ramp(t, 1.9, 1.1),
+  // enclosure, so they thin more gently — but a nerve trunk at a tissue-tier
+  // span is a wall, so they do thin
+  chains: (t) => 1 - 0.6 * ramp(t, 1.9, 1.0),
+  nerve: (t) => 1 - 0.78 * ramp(t, 1.6, 1.1),
   // organs are the subject at the organ tier, so they hold full weight through it
-  organ: (t) => 1 - 0.45 * ramp(t, 2.6, 0.9),
+  organ: (t) => 1 - 0.55 * ramp(t, 2.6, 0.9),
   arterial: (t) => 1 - 0.35 * ramp(t, 2.0, 1.0),
   venous: (t) => 1 - 0.35 * ramp(t, 2.0, 1.0),
 };

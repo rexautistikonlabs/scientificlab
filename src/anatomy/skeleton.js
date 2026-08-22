@@ -23,6 +23,9 @@ const BONE = {
   rough: 0.55,
   spec: 0.26,
   rim: 0.24,
+  // periosteal bone is satin, not wet — keep the transmission to a trace so a
+  // backlit rib warms slightly without ever glowing like soft tissue
+  sss: 0.08,
   // bone is a compression element: its own strain barely changes, so it takes
   // only a muted share of the force colouring
   forceAmount: 0.5,
@@ -265,7 +268,7 @@ export function buildSkeleton(ctx) {
       loft(
         vaultStations.map((s) => V(0, s[0], s[3])),
         vaultStations.map((s) => ({ a: s[1], b: s[2], n: 2.15 })),
-        q.high ? 26 : 18,
+        q.high ? 34 : 18,
         { refUp: V(0, 0, 1), capStart: true, capEnd: true }
       )
     );
@@ -285,7 +288,7 @@ export function buildSkeleton(ctx) {
       loft(
         faceStations.map((s) => V(0, s[0], s[3])),
         faceStations.map((s) => ({ a: s[1], b: s[2], n: 2.4 })),
-        q.high ? 20 : 14,
+        q.high ? 26 : 14,
         { refUp: V(0, 0, 1), capStart: true, capEnd: false }
       )
     );

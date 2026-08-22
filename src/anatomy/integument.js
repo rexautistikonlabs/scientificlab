@@ -26,6 +26,8 @@ const SKIN = {
   rim: 0.8,
   mode: 'xray',
   doubleSide: true,
+  // skin is the thinnest backlit tissue on the body — the strongest transmitter
+  sss: 0.6,
   forceAmount: 0.85,
 };
 

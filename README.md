@@ -278,6 +278,43 @@ resolving alpha first is better shader ordering regardless — but no claim is m
 both are set conservatively enough that the image is the thing being protected rather than the
 benchmark.
 
+### Materials and lighting
+
+The look is a calibrated instrument, not a photograph, and every term in it is hand-built —
+there is no PBR pipeline and no image-based lighting, because the entire figure runs one shared
+vertex program against the solved tension texture and the budget goes to translucent overdraw.
+What the shading spends, and why:
+
+- **Three-light rig + hemisphere ambient.** Cool key, warm fill, cold back rim — pre-normalised
+  directions, no per-fragment normalise. The old flat ambient floor became a hemisphere term
+  (cool skylight above, warm tissue-bounce below) so surfaces shadowed from all three lights
+  still state their orientation; that is what keeps the trunk interior readable at the organ
+  tier, and it costs one `mix()`.
+- **Dual-lobe wet specular.** A tight glint plus a broad low sheen from the same half-vector —
+  one extra `pow()`. Living tissue is never dry: one tight lobe reads as lacquer, sheen alone
+  reads as chalk. Organs carry the strongest lobes (serosa), bone the weakest.
+- **Subsurface transmission.** Key light arriving *through* the tissue when the surface sits
+  between lamp and camera, strongest at grazing thickness. The transmitted colour is the albedo
+  *squared* — filtered twice — which is why a backlit fascia saturates instead of whitening.
+  Strength is per-material (`sss`): skin highest, membranes and fascia high, muscle moderate,
+  bone a trace.
+- **Fibre striation.** Darken-only grooves that vary *around* a structure's girth and run along
+  its axis — the direction muscle fascicles and collagen bundles actually run. Counts are per
+  girth (or per ribbon width), sheared a few degrees so they read as fibres, not print.
+- **Depth-of-interest slab.** From the organ tier inward, tissue in front of the focal point
+  sections away and tissue well behind it fades to a dark ground. The slab deepens as the scale
+  descends: tight at the organ tier (a readable section), open at the tissue tier — at a
+  twelve-millimetre span a tight slab sat entirely inside one muscle belly and left a black
+  field.
+- **Receptor tissue beds.** At the deepest tiers each modelled ending sits in the minimum
+  procedural surrounding that makes it legible — extrafusal fascicles around the spindle,
+  epidermal ridges over the Meissner corpuscle, the muscle–tendon junction through the Golgi
+  organ, fat lobules and septa around the Pacinian. Beds are presentation only: not solver-bound,
+  not pickable, no IDs.
+
+All of it reads the same solved field: tension colouring, displacement and the force ramp are
+untouched, and none of these terms exists on the Low tier's cost path (see the table).
+
 ### Quality tiers
 
 | | Low | Medium | High | Ultra |
@@ -286,7 +323,8 @@ benchmark.
 | MSAA | off | 2× | 4× | 4× |
 | Bloom | off | one level | two levels | two levels |
 | Translucent shells | rim-weighted, single-sided | full, double-sided | full, double-sided | full, double-sided |
-| Lighting | three-light rig, no specular | three-light rig | three-light rig | three-light rig |
+| Lighting | rig + hemisphere ambient, no specular, no subsurface | full: dual-lobe specular + subsurface | full | full |
+| Receptor tissue beds | off | on | on | on |
 | Receptor endings drawn | 500 | 882 | 1 469 | 1 469 |
 | Signal beads drawn | 540 | 960 | 1 500 | 1 920 |
 | Suits | integrated graphics, older laptops, software rendering | recent integrated graphics, mid-range laptops | discrete GPUs, Apple silicon | modern discrete GPUs, high-DPI displays |

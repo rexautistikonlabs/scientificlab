@@ -21,7 +21,7 @@ import { store, SCALES, TOOLS } from './core/store.js';
 import { Controls } from './core/controls.js';
 import { ScaleManager } from './core/scales.js';
 import { QualityController, detectHardware, TIERS } from './core/quality.js';
-import { clamp, el, approach } from './core/util.js';
+import { clamp, el, approach, smootherstep } from './core/util.js';
 import { PostFX } from './gfx/postfx.js';
 import { GLOBAL, backdrop, groundPad } from './gfx/materials.js';
 import { SignalStreams, NetworkOverlay, MicroPulses } from './gfx/signals.js';
@@ -229,6 +229,8 @@ async function main() {
        spike generator and the conduction delay are untouched, so a low tier shows
        a sparser axon with identical timing. */
     microPulses.setDensity(tier.particles);
+    // the receptor tissue beds are presentation only — the weakest tier skips them
+    micro.setDetail?.(tier.particles);
     postfx.setSamples(tier.msaa);
     postfx.setLevels(tier.bloomLevels);
     postfx.set('uChroma', tier.chroma);
@@ -1122,7 +1124,14 @@ async function main() {
     if (controls.nearFrac > 0.02) {
       const focal = camera.position.distanceTo(controls.target);
       GLOBAL.uCutDist.value = camera.near;
-      GLOBAL.uSlabFar.value = focal * 1.3;
+      /* The slab deepens as the scale descends. At the organ tier a tight far
+         edge is what turns the torso interior into a readable section; at the
+         tissue tier the same tightness cut *everything* — the visible window sat
+         inside one muscle belly, front face sectioned, back face faded, leaving
+         a black field. Descending, the window opens so the local neighbourhood
+         stays present behind the subject. */
+      const deepSlab = smootherstep(clamp((scales.tier - 2.5) / 1.0, 0, 1));
+      GLOBAL.uSlabFar.value = focal * (1.18 + 1.0 * deepSlab);
     } else {
       GLOBAL.uCutDist.value = 0;
     }

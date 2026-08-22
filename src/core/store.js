@@ -229,8 +229,12 @@ class Store extends Emitter {
     this.scaleIndex = 0;
     this.scaleFloat = 0; // continuous position along the scale ladder
     this.focus = null; // structure key the camera is anchored to
-    /** receptor class shown in micro-anatomy at the deepest tier */
-    this.microFocus = 'pacinian';
+    /** receptor class shown in micro-anatomy at the deepest tier. The spindle,
+        because the deep default framing is a muscle: descending the rail lands
+        inside the scalene neighbourhood, and the ending shown there must be the
+        one that actually lives in muscle. Microscope mode forces the same
+        choice on entry for the same reason. */
+    this.microFocus = 'spindle';
 
     /**
      * Microscope mode — micro-mechanics on one region of interest.
