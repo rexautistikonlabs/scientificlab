@@ -194,9 +194,17 @@ export class ScaleManager {
        said whole-body — which threw the kept target away and sent the dive to
        the deep default instead of the structure the user just chose. */
     const keepTarget = opts.keepTarget ?? (tierFor(this.controls.span) > 0.6 && i > 0);
+    /* A deep jump with an explicit selection goes to the SELECTION — the user
+       has named a target, and landing on the build-time default site instead
+       is the single most disorienting thing this navigation used to do. */
+    const sel =
+      !keepTarget && i >= 3 && this.store.selection.size === 1
+        ? this.registry.get([...this.store.selection][0])
+        : null;
+    const center = keepTarget ? this.controls.target.clone() : (sel ? sel.center.clone() : def.center.clone());
     if (opts.instant) {
       this.controls.snapTo({
-        target: keepTarget ? this.controls.target.clone() : def.center.clone(),
+        target: center,
         span: SCALES[i].span,
         theta: opts.keepAngle ? undefined : def.theta,
         phi: opts.keepAngle ? undefined : def.phi,
@@ -205,7 +213,7 @@ export class ScaleManager {
       return Promise.resolve();
     }
     return this.controls.flyTo({
-      target: keepTarget ? this.controls.target.clone() : def.center.clone(),
+      target: center,
       span: SCALES[i].span,
       theta: opts.keepAngle ? undefined : def.theta,
       phi: opts.keepAngle ? undefined : def.phi,
@@ -316,7 +324,11 @@ export class ScaleManager {
       }
     }
     if (m.active && !wasActive) {
-      this._setAnchor(this.controls.target);
+      /* Anchor at the flight's DESTINATION, not at the interpolating look-at
+         point: a continuous dive crosses the microscope threshold mid-flight,
+         and anchoring to a point the camera is merely passing through leaves
+         the subject off-frame when the flight lands. */
+      this._setAnchor(this.controls.destinationTarget());
       this._frameMicroSubject();
     }
     if (!m.active && wasActive) this._anchor = null;
@@ -356,8 +368,10 @@ export class ScaleManager {
       if (m.active && this._anchor) {
         const model = this.micro.models.get(this._microActive);
         const roam = Math.max((model ? this._extentOf(model) : 0.006) || 0.006, 0.004) * 2.4;
-        if (this.controls.target.distanceTo(this._anchor.pos) > roam) {
-          this._setAnchor(this.controls.target);
+        // destination, not transit: one clean re-anchor per journey
+        const dest = this.controls.destinationTarget();
+        if (dest.distanceTo(this._anchor.pos) > roam) {
+          this._setAnchor(dest);
         }
       }
       const anchorPos = this._anchor ? this._anchor.pos : this.controls.target;
@@ -371,6 +385,15 @@ export class ScaleManager {
           if (u) u.value = (mm.userData.baseOpacity ?? 1) * microBlend * (1 - 0.97 * cellBlend);
         }
         this._driveSpindleGeometry(model);
+        /* The bed's fibril and speck crowds share the cell's drive: they pack
+           down under the same local congestion and their gentle drift stops
+           when the physiology is held. */
+        const ms = this._localMechState();
+        const bedJitter = this.store.physio.running ? 0.45 : 0.08;
+        for (const c of model.crowds || []) {
+          c.material.uniforms.uCongest.value = ms.congest * 0.55;
+          c.material.uniforms.uJitter.value = bedJitter;
+        }
       }
     } else if (this._microActive) {
       for (const [, m] of this.micro.models) m.group.visible = false;
@@ -385,34 +408,13 @@ export class ScaleManager {
         // anchored to the same travelling look-at point as the micro models,
         // so descending anywhere lands inside a cell of the local tissue
         this.cell.root.position.copy(this._microPos);
-        const sp = this.spindle;
-        /* Local congestion, read from the same solve as everything else: the
-           intervention fields — stiffening, viscosity, pressure — at the two
-           nodes of the element this cell's spindle is bound to. Restriction
-           raises the first two, compression the third, and the whole-body
-           tools write all of them through the one verified intervention path,
-           so nothing here is a second physics — it is the first physics, read
-           at one more scale. */
-        let congest = 0;
-        if (sp?.resolved) {
-          const sv = sp.solver;
-          const a = sv.ea[sp.element];
-          const b = sv.eb[sp.element];
-          const stiff = (sv.stiffness[a] + sv.stiffness[b]) * 0.5;
-          const visc = (sv.viscosity[a] + sv.viscosity[b]) * 0.5;
-          const press = (sv.pressure[a] + sv.pressure[b]) * 0.5;
-          /* shaped fast-rise: a moderate intervention applied through the UI
-             (falloff and all) must already read unmistakably in the cell,
-             not only the direct-hit maximum */
-          const raw = clamp(stiff * 1.2 + visc * 0.8 + press * 0.7, 0, 1);
-          congest = raw * (2 - raw);
-        }
+        const ms = this._localMechState();
         this.cell.update(dt, {
           blend: cellBlend,
-          strain: sp?.resolved ? sp.strain : 0,
-          velocity: sp?.resolved ? sp.velocity : 0,
+          strain: ms.strain,
+          velocity: ms.velocity,
           running: this.store.physio.running,
-          congest,
+          congest: ms.congest,
         });
       }
     }
@@ -457,6 +459,29 @@ export class ScaleManager {
    * afterwards is the user's business and is left alone; this is the framing the
    * mode opens with, not a leash.
    */
+  /**
+   * The solved local mechanical state at the anchored element — strain,
+   * velocity, and a congestion composite of the intervention fields
+   * (stiffening, viscosity, pressure) at its two nodes. Restriction raises
+   * the first two, compression the third, and the whole-body tools write all
+   * of them through the one verified intervention path: this is the first
+   * physics read at one more scale, never a second one. The composite is
+   * shaped fast-rise (c·(2−c)) so a moderate UI-applied intervention already
+   * reads unmistakably, not only the direct-hit maximum.
+   */
+  _localMechState() {
+    const sp = this.spindle;
+    if (!sp?.resolved) return { congest: 0, strain: 0, velocity: 0 };
+    const sv = sp.solver;
+    const a = sv.ea[sp.element];
+    const b = sv.eb[sp.element];
+    const stiff = (sv.stiffness[a] + sv.stiffness[b]) * 0.5;
+    const visc = (sv.viscosity[a] + sv.viscosity[b]) * 0.5;
+    const press = (sv.pressure[a] + sv.pressure[b]) * 0.5;
+    const raw = clamp(stiff * 1.2 + visc * 0.8 + press * 0.7, 0, 1);
+    return { congest: raw * (2 - raw), strain: sp.strain, velocity: sp.velocity };
+  }
+
   /**
    * Resolve and set the microscope's anchor at a point.
    *

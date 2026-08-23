@@ -18,6 +18,7 @@ import { loft, tube, spline, sample, merge, blob, place } from './build.js';
 import { RECEPTORS } from './info.js';
 import { lerp, TAU, rng } from '../core/util.js';
 import { tissueMaterial, nerveMaterial } from '../gfx/materials.js';
+import { crowdMesh, randQuat, alignedQuat, pick } from './cellscape.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -359,6 +360,76 @@ const MUSCLE_BED = { color: 0xa63a44, opacity: 0.46, rough: 0.5, spec: 0.3, rim:
 const COLLAGEN_BED = { color: 0xd9cfae, opacity: 0.44, rough: 0.6, spec: 0.28, rim: 0.9, mode: 'xray', xrayFloor: 0.12, doubleSide: true, stripe: 0.55, stripeFreq: 22, sss: 0.35 };
 const DERMIS_BED = { color: 0xe0b090, opacity: 0.22, rough: 0.85, spec: 0.12, rim: 0.9, mode: 'xray', xrayFloor: 0.07, doubleSide: true, sss: 0.55 };
 
+/* ------------------------------------------------------------
+   Instanced tissue crowds — the density layer.
+
+   The merged wisps and fibres give each bed its structure; what they cannot
+   give it is *packing*. Every bed therefore carries instanced fibril and
+   ground-substance populations built with the same crowd system as the
+   cellular tier: collagen fibrils as aligned rods running with the tissue's
+   grain, ground substance and cell bodies as small muted specks. One or two
+   draw calls per bed, only one bed visible at a time, counts scaled by the
+   quality tier, seethe and congestion driven by the same solved local state
+   as the cell. Illustrative composition, like everything at this depth.
+   ------------------------------------------------------------ */
+
+const ICO_BASE = new THREE.IcosahedronGeometry(1, 0);
+const ROD_BASE = new THREE.CylinderGeometry(0.3, 0.3, 3.2, 5, 1, false);
+
+const FIBRIL_PAL = [
+  { c: 0xd9cfae, w: 0.45 },
+  { c: 0xcabf9e, w: 0.3 },
+  { c: 0xe6dcc2, w: 0.25 },
+];
+const GROUND_PAL = [
+  { c: 0x9fb2c2, w: 0.45 },
+  { c: 0xcfc4b2, w: 0.35 },
+  { c: 0x8fa89e, w: 0.2 },
+];
+const SARCO_PAL = [
+  { c: 0xa85850, w: 0.4 },
+  { c: 0x8a4a44, w: 0.35 },
+  { c: 0xc47a6a, w: 0.25 },
+];
+
+/** Aligned fibril rods filling a volume. dirFn(r) gives the local grain. */
+function fibrilCrowd(r, n, S, { sMin, sMax, posFn, dirFn, pal = FIBRIL_PAL, jitter = 0.22 }) {
+  const items = [];
+  for (let k = 0; k < n; k++) {
+    items.push({
+      p: posFn(r),
+      s: S * (sMin + (sMax - sMin) * r()),
+      c: pick(pal, r),
+      q: alignedQuat(dirFn(r), r, jitter),
+    });
+  }
+  return { crowd: { base: ROD_BASE, items } };
+}
+
+/** Ground-substance / cell-body specks filling a volume. */
+function speckCrowd(r, n, S, { sMin, sMax, posFn, pal = GROUND_PAL }) {
+  const items = [];
+  for (let k = 0; k < n; k++) {
+    items.push({
+      p: posFn(r),
+      s: S * (sMin + (sMax - sMin) * r()),
+      c: pick(pal, r),
+      q: randQuat(r),
+    });
+  }
+  return { crowd: { base: ICO_BASE, items } };
+}
+
+/** Point in an annulus around the Y axis. */
+const annulusPt = (S, r0, r1, h) => (r) => {
+  const a = r() * TAU;
+  const rad = S * (r0 + (r1 - r0) * Math.sqrt(r()));
+  return V(Math.cos(a) * rad, (r() - 0.5) * S * h, Math.sin(a) * rad);
+};
+/** Point in a box slab. */
+const slabPt = (S, w, h, d, cy = 0) => (r) =>
+  V((r() - 0.5) * S * w, S * cy + (r() - 0.5) * S * h, (r() - 0.5) * S * d);
+
 const CONTEXTS = {
   /* The spindle lies in parallel with the extrafusal fascicles — that parallel
      arrangement is the entire mechanical premise of the receptor, so the bed
@@ -366,8 +437,8 @@ const CONTEXTS = {
   spindle(S) {
     const r = rng(1211);
     const fibres = [];
-    for (let k = 0; k < 30; k++) {
-      const rad = S * (0.16 + 0.62 * Math.pow(r(), 0.7));
+    for (let k = 0; k < 54; k++) {
+      const rad = S * (0.16 + 0.72 * Math.pow(r(), 0.7));
       fibres.push(
         contextFibre(S, r, {
           rad,
@@ -393,6 +464,10 @@ const CONTEXTS = {
         opts: { color: 0xd8e8ee, opacity: 0.07, rough: 0.7, spec: 0.15, rim: 0.7, mode: 'xray', xrayFloor: 0.04, doubleSide: true },
         order: 0,
       },
+      // endomysial collagen running with the fibres, and the sarcoplasmic /
+      // interstitial grain between them — the packing layer
+      fibrilCrowd(r, 900, S, { sMin: 0.012, sMax: 0.03, posFn: annulusPt(S, 0.14, 0.95, 2.1), dirFn: () => V(0, 1, 0), jitter: 0.12 }),
+      speckCrowd(r, 1500, S, { sMin: 0.006, sMax: 0.016, posFn: annulusPt(S, 0.14, 0.9, 2.0), pal: SARCO_PAL }),
     ];
   },
 
@@ -402,7 +477,7 @@ const CONTEXTS = {
     const r = rng(407);
     const tendon = [];
     const muscle = [];
-    for (let k = 0; k < 16; k++) {
+    for (let k = 0; k < 26; k++) {
       const ang = r() * TAU;
       const rad = S * (0.08 + 0.3 * r());
       const splay = 1 + r() * 0.7;
@@ -416,6 +491,9 @@ const CONTEXTS = {
     return [
       { geom: merge(tendon), opts: COLLAGEN_BED },
       { geom: merge(muscle), opts: MUSCLE_BED },
+      // the dense parallel fibril field a tendon actually is — tightly aligned
+      fibrilCrowd(r, 1600, S, { sMin: 0.014, sMax: 0.034, posFn: annulusPt(S, 0, 0.6, 3.4), dirFn: () => V(0, 1, 0), jitter: 0.07 }),
+      speckCrowd(r, 500, S, { sMin: 0.008, sMax: 0.018, posFn: annulusPt(S, 0, 0.55, 3.0) }),
     ];
   },
 
@@ -431,7 +509,7 @@ const CONTEXTS = {
       lobules.push(b);
     }
     const septa = [];
-    for (let k = 0; k < 8; k++) {
+    for (let k = 0; k < 14; k++) {
       septa.push(
         contextFibre(S, r, { rad: S * (0.5 + 1.1 * r()), ang: r() * TAU, len: S * 3.4, radius: S * 0.028, wave: 0.06 })
       );
@@ -440,6 +518,9 @@ const CONTEXTS = {
       { geom: merge(lobules), opts: { color: 0xe8cf9e, opacity: 0.1, rough: 0.9, spec: 0.08, rim: 0.8, mode: 'xray', xrayFloor: 0.05, doubleSide: true, sss: 0.5 } },
       { geom: merge(septa), opts: COLLAGEN_BED },
       { geom: epidermisSheet(S, { w: S * 6.4, y: S * 2.4, amp: S * 0.12, ridges: 8 }), opts: DERMIS_BED, order: 0 },
+      // subcutis: loose multidirectional fibrils and adipose/ground grain
+      fibrilCrowd(r, 1100, S, { sMin: 0.02, sMax: 0.05, posFn: slabPt(S, 5.6, 3.4, 5.6, -0.4), dirFn: (rr) => V(rr() * 2 - 1, (rr() - 0.5) * 0.8, rr() * 2 - 1), jitter: 0.35 }),
+      speckCrowd(r, 700, S, { sMin: 0.014, sMax: 0.034, posFn: slabPt(S, 5.2, 3.2, 5.2, -0.5), pal: [{ c: 0xe8cf9e, w: 0.55 }, { c: 0xcfc4b2, w: 0.25 }, { c: 0x9fb2c2, w: 0.2 }] }),
     ];
   },
 
@@ -448,7 +529,7 @@ const CONTEXTS = {
   meissner(S) {
     const r = rng(311);
     const wisps = [];
-    for (let k = 0; k < 10; k++) {
+    for (let k = 0; k < 18; k++) {
       wisps.push(
         contextFibre(S, r, { rad: S * (0.45 + 0.8 * r()), ang: r() * TAU, len: S * 1.9, radius: S * 0.02, wave: 0.08, y0: -S * 0.4 })
       );
@@ -456,6 +537,9 @@ const CONTEXTS = {
     return [
       { geom: epidermisSheet(S, { w: S * 4.6, y: S * 0.72, amp: S * 0.22, ridges: 6 }), opts: { ...DERMIS_BED, opacity: 0.2 }, order: 0 },
       { geom: merge(wisps), opts: COLLAGEN_BED },
+      // papillary dermis: fine fibrils weaving beneath the ridges
+      fibrilCrowd(r, 900, S, { sMin: 0.012, sMax: 0.03, posFn: slabPt(S, 4.2, 1.7, 4.2, -0.45), dirFn: (rr) => V(rr() * 2 - 1, (rr() - 0.5) * 0.5, rr() * 2 - 1), jitter: 0.3 }),
+      speckCrowd(r, 500, S, { sMin: 0.008, sMax: 0.02, posFn: slabPt(S, 4.0, 1.6, 4.0, -0.5) }),
     ];
   },
 
@@ -464,7 +548,7 @@ const CONTEXTS = {
   ruffini(S) {
     const r = rng(555);
     const wisps = [];
-    for (let k = 0; k < 12; k++) {
+    for (let k = 0; k < 24; k++) {
       const g = contextFibre(S, r, { rad: S * (0.2 + 0.5 * r()), ang: r() * TAU, len: S * 2.6, radius: S * 0.018, wave: 0.03 });
       // the capsule's long axis is Y; keep the field loosely aligned with it
       place(g, { rot: [0, 0, (r() - 0.5) * 0.5] });
@@ -473,6 +557,11 @@ const CONTEXTS = {
     return [
       { geom: merge(wisps), opts: COLLAGEN_BED },
       { geom: epidermisSheet(S, { w: S * 5.2, y: S * 1.7, amp: S * 0.14, ridges: 7 }), opts: DERMIS_BED, order: 0 },
+      // dense fascia is plied: two fibril families at crossing angles, which is
+      // exactly the organisation the tier should show at high magnification
+      fibrilCrowd(r, 800, S, { sMin: 0.016, sMax: 0.04, posFn: slabPt(S, 4.6, 1.8, 4.6), dirFn: () => V(1, 0.35, 0.4), jitter: 0.16 }),
+      fibrilCrowd(r, 800, S, { sMin: 0.016, sMax: 0.04, posFn: slabPt(S, 4.6, 1.8, 4.6), dirFn: () => V(0.35, 0.3, -1), jitter: 0.16 }),
+      speckCrowd(r, 600, S, { sMin: 0.008, sMax: 0.02, posFn: slabPt(S, 4.4, 1.7, 4.4) }),
     ];
   },
 
@@ -480,7 +569,7 @@ const CONTEXTS = {
   free(S) {
     const r = rng(83);
     const wisps = [];
-    for (let k = 0; k < 8; k++) {
+    for (let k = 0; k < 16; k++) {
       wisps.push(
         contextFibre(S, r, { rad: S * (0.5 + 0.9 * r()), ang: r() * TAU, len: S * 2.4, radius: S * 0.02, wave: 0.06 })
       );
@@ -488,6 +577,8 @@ const CONTEXTS = {
     return [
       { geom: epidermisSheet(S, { w: S * 5.4, y: S * 1.1, amp: S * 0.2, ridges: 6 }), opts: { ...DERMIS_BED, opacity: 0.18 }, order: 0 },
       { geom: merge(wisps), opts: COLLAGEN_BED },
+      fibrilCrowd(r, 800, S, { sMin: 0.014, sMax: 0.034, posFn: slabPt(S, 4.6, 2.0, 4.6, -0.3), dirFn: (rr) => V(rr() * 2 - 1, (rr() - 0.5) * 0.6, rr() * 2 - 1), jitter: 0.32 }),
+      speckCrowd(r, 400, S, { sMin: 0.008, sMax: 0.02, posFn: slabPt(S, 4.2, 1.8, 4.2, -0.3) }),
     ];
   },
 
@@ -496,7 +587,7 @@ const CONTEXTS = {
   intero(S) {
     const r = rng(219);
     const caps = [];
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < 10; k++) {
       const pts = [];
       const z0 = (r() - 0.5) * S * 3.4;
       for (let i = 0; i <= 14; i++) {
@@ -511,6 +602,9 @@ const CONTEXTS = {
     return [
       { geom: merge(caps), opts: { color: 0xe8506b, opacity: 0.4, rough: 0.4, spec: 0.4, rim: 0.9, mode: 'xray', xrayFloor: 0.12, doubleSide: true, sss: 0.4 } },
       { geom: under, opts: { color: 0x9fb8d8, opacity: 0.1, rough: 0.8, spec: 0.1, rim: 0.8, mode: 'xray', xrayFloor: 0.05, doubleSide: true } },
+      // the mesothelial cobblestone on the membrane, and submesothelial fibrils
+      speckCrowd(r, 900, S, { sMin: 0.03, sMax: 0.06, posFn: (rr) => V((rr() - 0.5) * S * 5.6, -S * 0.02 + rr() * S * 0.08, (rr() - 0.5) * S * 5.6), pal: [{ c: 0xbcd0da, w: 0.6 }, { c: 0xa5c2b8, w: 0.4 }] }),
+      fibrilCrowd(r, 500, S, { sMin: 0.02, sMax: 0.05, posFn: slabPt(S, 5.4, 0.8, 5.4, -0.7), dirFn: (rr) => V(rr() * 2 - 1, (rr() - 0.5) * 0.2, rr() * 2 - 1), jitter: 0.3 }),
     ];
   },
 };
@@ -595,8 +689,17 @@ export function buildMicroAnatomy() {
     }
 
     const bed = CONTEXTS[id]?.(S, def);
+    const beds = [];
     if (bed) {
       for (const part of bed) {
+        if (part?.crowd) {
+          const mesh = crowdMesh(part.crowd.base, part.crowd.items);
+          mesh.renderOrder = part.order ?? 1;
+          context.add(mesh);
+          mats.push(mesh.material);
+          beds.push(mesh);
+          continue;
+        }
         if (!part?.geom) continue;
         const m = tissueMaterial({ disp: 0, ...part.opts });
         const mesh = new THREE.Mesh(stripBind(part.geom), m);
@@ -607,14 +710,21 @@ export function buildMicroAnatomy() {
     }
 
     root.add(g);
-    models.set(id, { id, def, group: g, subject, context, materials: mats, size: S });
+    models.set(id, { id, def, group: g, subject, context, materials: mats, crowds: beds, size: S });
   }
 
   /* Quality lever: the beds are pure presentation, so the weakest tier simply
-     does not draw them. Everything else about the mode — the subject, the
-     read-out, the spike raster — is identical on every tier. */
+     does not draw them, and the middle tier draws a scaled share of the
+     instanced fibril and speck populations. Everything else about the mode —
+     the subject, the read-out, the spike raster — is identical on every tier. */
   const setDetail = (f) => {
-    for (const [, m] of models) m.context.visible = f >= 0.35;
+    const share = f < 0.35 ? 0.1 : Math.min(1, f * 1.28);
+    for (const [, m] of models) {
+      m.context.visible = f >= 0.35;
+      for (const c of m.crowds) {
+        c.geometry.instanceCount = Math.max(24, Math.round(c.userData.fullCount * share));
+      }
+    }
   };
 
   return { root, models, setDetail };

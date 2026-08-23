@@ -271,6 +271,12 @@ export class Controls {
     return 2 * d * Math.tan(f / 2);
   }
 
+  /** The look-at point this camera is headed for — same intent-over-transit
+      rule as destinationSpan(). */
+  destinationTarget() {
+    return this._fly ? this._fly.to.target : this._target;
+  }
+
   cancelFly() {
     if (this._fly) {
       this._fly.resolve?.();

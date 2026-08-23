@@ -173,7 +173,7 @@ function crowdMaterial() {
  * @param {THREE.BufferGeometry} base   the per-instance shape
  * @param {Array} items                 [{p:Vector3, s:number, c:Color, q:Quaternion}]
  */
-function crowdMesh(base, items) {
+export function crowdMesh(base, items) {
   const n = items.length;
   const geo = new THREE.InstancedBufferGeometry();
   geo.index = base.index;
@@ -198,20 +198,40 @@ function crowdMesh(base, items) {
   geo.setAttribute('iSeed', new THREE.InstancedBufferAttribute(seed, 1));
   geo.setAttribute('iQuat', new THREE.InstancedBufferAttribute(quat, 4));
   geo.instanceCount = n;
-  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), S * 6);
+  // measured from the population, not assumed: the same crowd system now
+  // serves both the 9 µm cell and millimetre-scale tissue beds
+  let rad = 0;
+  for (const it of items) rad = Math.max(rad, it.p.length() + it.s * 4);
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), rad * 1.25 + 1e-9);
   const mesh = new THREE.Mesh(geo, crowdMaterial());
   mesh.userData.fullCount = n;
   return mesh;
 }
 
 /** Random unit quaternion. */
-function randQuat(r) {
+export function randQuat(r) {
   const u1 = r();
   const u2 = r() * TAU;
   const u3 = r() * TAU;
   const a = Math.sqrt(1 - u1);
   const b = Math.sqrt(u1);
   return new THREE.Quaternion(a * Math.sin(u2), a * Math.cos(u2), b * Math.sin(u3), b * Math.cos(u3));
+}
+
+/**
+ * Quaternion aligning the rod axis (+Y) to a direction, with a seeded jitter
+ * cone — the workhorse for fibril fields that run *along* a tissue's grain.
+ */
+export function alignedQuat(dir, r, jitter = 0.25) {
+  const d = dir.clone().normalize();
+  d.x += (r() - 0.5) * jitter;
+  d.y += (r() - 0.5) * jitter;
+  d.z += (r() - 0.5) * jitter;
+  d.normalize();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+  // free spin around the axis, so aligned rods do not share a facet phase
+  const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * TAU);
+  return q.multiply(spin);
 }
 
 /* Molecular families — one hue AND one size band per family, weighted the way
@@ -253,7 +273,7 @@ const STUD_PALETTE = [
   { c: 0x58a8f0, w: 0.25 },
 ];
 
-function pick(palette, r) {
+export function pick(palette, r) {
   let t = r();
   for (const p of palette) {
     t -= p.w;

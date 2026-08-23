@@ -311,9 +311,20 @@ What the shading spends, and why:
 - **Receptor tissue beds.** At the deepest tiers each modelled ending sits in the minimum
   procedural surrounding that makes it legible — extrafusal fascicles around the spindle,
   epidermal ridges over the Meissner corpuscle, the muscle–tendon junction through the Golgi
-  organ, fat lobules and septa around the Pacinian. Beds are presentation only: not solver-bound,
-  not pickable, no IDs.
-- **Structure-anywhere microscopy.** A deep dive anchors to the anatomy it entered, not to a
+  organ, fat lobules and septa around the Pacinian. Since the density pass, every bed also
+  carries instanced fibril and ground-substance crowds built with the cellular tier's crowd
+  system — aligned collagen rods running with the tissue's grain (tightly parallel in tendon,
+  plied at crossing angles in fascia, loose in subcutis) plus muted cell-body and ground
+  specks — so a dive lands in packed tissue rather than a sparse diagram, at one or two extra
+  draw calls for the single visible bed. The beds share the cell's congestion and stillness
+  drive. Beds are presentation only: not solver-bound, not pickable, no IDs.
+- **Structure-anywhere microscopy.** Press <kbd>M</kbd> with a structure selected for the
+  single-gesture version: one continuous cinematic descent from wherever the camera is into that
+  structure's microscopic tissue (`CONTINUUM.micro.enter(id)` from the console). Deep tier jumps
+  (keys 3–6) with an explicit selection also go to the selection, never to the build-time default
+  site. Anchoring and roaming judge the camera's *destination*, not its mid-flight position, so a
+  dive that crosses the microscope threshold en route still lands with the subject in frame.
+- **Anchoring rules.** A deep dive anchors to the anatomy it entered, not to a
   preset site: the selected structure when there is one, otherwise the nearest tissue to the
   look-at point. The micro-mechanics unit rebinds to that structure's own network element (the
   same spindle-unit class, unchanged — element kinematics are honest for any tissue) and the

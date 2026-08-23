@@ -817,6 +817,26 @@ async function main() {
     if (s) scales.focus(s);
   };
 
+  /**
+   * The explicit microscope entry: one continuous cinematic descent from
+   * wherever the camera is into microscopic density at the selected (or
+   * hovered) structure. The dive crosses the microscope threshold en route,
+   * which anchors the mechanics and opens the tissue's own receptor bed; the
+   * mode's entry framing then settles on the subject. Scroll does the same
+   * thing gradually — this is the single-gesture version.
+   */
+  actions.enterMicroscope = () => {
+    if (!entitlements.require('scale.deep', { via: 'enterMicroscope' })) return;
+    const key = store.selection.size === 1 ? [...store.selection][0] : hoverKey;
+    const s = key ? registry.get(key) : null;
+    if (!s) {
+      hud.toast('Select a structure first — then <b>M</b> dives into its tissue');
+      return;
+    }
+    hud.toast(`Descending into <b>${s.name}</b>…`, 2600);
+    controls.flyTo({ target: s.center.clone(), span: 0.0028, duration: 2.6 });
+  };
+
   actions.frameSelection = () => {
     const box = registry.frameOf([...store.selection]);
     if (box) scales.frame(box);
@@ -957,6 +977,8 @@ async function main() {
               : 'Microscope mode released — it will follow camera distance again',
             3000
           );
+        } else {
+          actions.enterMicroscope();
         }
         break;
       case 'f':
@@ -1439,6 +1461,14 @@ async function main() {
     micro: {
       get spindle() {
         return microSpindle;
+      },
+      /** One-call microscopic dive: select by anatomical ID and descend. */
+      enter: (id) => {
+        if (id) {
+          const s = registry.byAnatomicalId(id);
+          if (s) store.select(s.key, false);
+        }
+        actions.enterMicroscope();
       },
       rois: MICRO_ROIS,
       params: () => listParams(),
