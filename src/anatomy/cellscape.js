@@ -84,8 +84,11 @@ const CROWD_VERT = /* glsl */ `
     if (pick > 2.5) att = A3;
     else if (pick > 1.5) att = A2;
     else if (pick > 0.5) att = A1;
-    float commit = min(1.0, uCongest * (0.25 + 0.6 * fract(iSeed * 13.7)));
+    float commit = min(1.0, uCongest * (0.3 + 0.65 * fract(iSeed * 13.7)));
     vec3 base = mix(iOffset, att, commit);
+    // and the whole cytosol compacts inward, so the voids open first where a
+    // non-expert looks first: against the membrane
+    base *= 1.0 - 0.16 * uCongest;
 
     // Brownian seethe, free per instance: three incommensurate sines seeded
     // per complex. Amplitude is a fraction of the complex's own size, so big
@@ -94,7 +97,7 @@ const CROWD_VERT = /* glsl */ `
       sin(uTime * 2.3 + iSeed * 17.0),
       sin(uTime * 2.9 + iSeed * 29.0),
       cos(uTime * 2.1 + iSeed * 23.0)
-    ) * uJitter * iScale * 0.55 * (1.0 - 0.75 * uCongest);
+    ) * uJitter * iScale * 0.55 * (1.0 - 0.85 * uCongest);
 
     vec3 p = base + jig + qrot(iQuat, position * iScale);
     vec4 wp = modelMatrix * vec4(p, 1.0);
@@ -110,6 +113,7 @@ const CROWD_FRAG = /* glsl */ `
   uniform float uCutDist;
   uniform float uSlabFar;
   uniform float uOpacity;
+  uniform float uCongest;
   varying vec3 vCol;
   varying vec3 vNrm;
   varying vec3 vWPos;
@@ -139,6 +143,8 @@ const CROWD_FRAG = /* glsl */ `
       float fog = smoothstep(uSlabFar * 0.55, uSlabFar * 1.25, d);
       col = mix(col, vec3(0.012, 0.015, 0.024), fog * 0.85);
     }
+    // a congested cytoplasm dims: the state change reads even in a still frame
+    col *= 1.0 - 0.14 * uCongest;
     gl_FragColor = vec4(col, uOpacity);
     #include <colorspace_fragment>
   }
@@ -406,16 +412,34 @@ export function buildCellscape() {
     2
   );
 
+  /* ---- structural clearings ----
+     The single biggest reason the first passes read as a uniform particle
+     ball: the crowd was sampled straight through the organelles, so every
+     figure was buried in its own ground. Real reconstructions read as
+     compartments because membrane systems displace the cytosol around them.
+     Each organelle now registers a clearing, and every crowd sample rejects
+     into free cytosol — the organelles sit in visible pockets. */
+  const clearings = [];
+  const isClear = (p) => clearings.every((c) => p.distanceToSquared(c.p) > c.r * c.r);
+  const freePt = (shrink) => {
+    for (let i = 0; i < 30; i++) {
+      const p = cytoPoint(r, shrink);
+      if (isClear(p)) return p;
+    }
+    return cytoPoint(r, shrink);
+  };
+
   /* ---- mitochondria — cristae as banded striation ---- */
   {
     const parts = [];
-    for (let k = 0; k < 12; k++) {
-      // large enough to read as landmarks over the granular crowd, small
-      // enough not to read as petals when the Low tier thins that crowd
-      const L = S * (0.24 + 0.14 * r());
-      const w = S * (0.08 + 0.03 * r());
+    for (let k = 0; k < 13; k++) {
+      const L = S * (0.26 + 0.17 * r());
+      const w = S * (0.09 + 0.035 * r());
       const g = microBlob(w, L, w, 10);
-      const p = cytoPoint(r, 0.8);
+      // spaced apart, and each one claims the pocket around itself
+      let p = cytoPoint(r, 0.78);
+      for (let i = 0; i < 20 && !isClear(p); i++) p = cytoPoint(r, 0.78);
+      clearings.push({ p: p.clone(), r: L * 1.2 });
       place(g, { pos: [p.x, p.y, p.z], rot: [r() * TAU, r() * TAU, r() * TAU] });
       parts.push(g);
     }
@@ -423,22 +447,26 @@ export function buildCellscape() {
       // crimson, deliberately far from ribosome amber — at full crowd density
       // an orange mitochondrion vanished into the granules around it
       color: 0xcf4030,
-      opacity: 0.9,
+      opacity: 0.92,
       rough: 0.45,
       spec: 0.45,
       rim: 0.5,
+      emissive: 0.05,
       stripe: 0.75,
       stripeFreq: 60,
       sss: 0.3,
     }, 2);
   }
 
-  /* ---- endoplasmic reticulum — curved sheets wrapping the nucleus ---- */
+  /* ---- endoplasmic reticulum — curved sheets wrapping the nucleus,
+          studded with ribosomes: the rough-ER signature that binds the amber
+          family to a structure instead of leaving it all free-floating ---- */
+  const erStuds = [];
   {
     const sheets = [];
-    for (let k = 0; k < 6; k++) {
+    for (let k = 0; k < 7; k++) {
       const a0 = r() * TAU;
-      const rad = NUC.r * S * (1.35 + k * 0.16);
+      const rad = NUC.r * S * (1.35 + k * 0.15);
       const pts = [];
       for (let i = 0; i <= 12; i++) {
         const t = i / 12;
@@ -452,6 +480,16 @@ export function buildCellscape() {
         );
       }
       sheets.push(ribbon(pts, () => S * (0.14 + 0.06 * r()), { refUp: V(0, 1, 0) }));
+      // ~90 ribosomes per sheet, scattered over its faces
+      for (let i = 0; i < 90; i++) {
+        const t = r();
+        const j = Math.min(11, Math.floor(t * 12));
+        const p = pts[j].clone().lerp(pts[j + 1], t * 12 - j);
+        p.x += (r() - 0.5) * S * 0.2;
+        p.y += (r() - 0.5) * S * 0.14;
+        p.z += (r() - 0.5) * S * 0.2;
+        erStuds.push(p);
+      }
     }
     addMesh(subject, merge(sheets), {
       color: 0x7fd0f0,
@@ -466,10 +504,11 @@ export function buildCellscape() {
     }, 3);
   }
 
-  /* ---- Golgi — a stack of cupped discs ---- */
+  /* ---- Golgi — a stack of cupped discs, in its own pocket ---- */
   {
     const parts = [];
     const gp = V(S * 0.34, S * -0.18, S * -0.3);
+    clearings.push({ p: gp.clone(), r: S * 0.3 });
     for (let k = 0; k < 5; k++) {
       const g = microBlob(S * (0.2 - k * 0.016), S * 0.022, S * (0.16 - k * 0.012), 10);
       place(g, { pos: [gp.x, gp.y + k * S * 0.055, gp.z], rot: [0.3, 0, 0.12] });
@@ -482,15 +521,16 @@ export function buildCellscape() {
   {
     const parts = [];
     const org = V(nc.x + NUC.r * S * 1.5, nc.y + S * 0.1, nc.z);
+    clearings.push({ p: org.clone(), r: S * 0.16 });
     for (let k = 0; k < 22; k++) {
       const dir = V(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1).normalize();
       const end = org.clone().addScaledVector(dir, S * (0.7 + 0.6 * r()));
       end.x = clamp(end.x, -MEM.a * S * 0.94, MEM.a * S * 0.94);
       end.y = clamp(end.y, -MEM.b * S * 0.94, MEM.b * S * 0.94);
       end.z = clamp(end.z, -MEM.c * S * 0.94, MEM.c * S * 0.94);
-      parts.push(filament(r, org, end, S * 0.009, S * 0.03));
+      parts.push(filament(r, org, end, S * 0.012, S * 0.03));
     }
-    addMesh(subject, merge(parts), { color: 0x74e074, opacity: 0.66, rough: 0.5, spec: 0.35, rim: 0.9, mode: 'xray', xrayFloor: 0.3, doubleSide: true }, 3);
+    addMesh(subject, merge(parts), { color: 0x74e074, opacity: 0.78, rough: 0.5, spec: 0.35, rim: 0.9, mode: 'xray', xrayFloor: 0.4, doubleSide: true }, 3);
   }
 
   /* ---- cortical actin + stress fibres + focal adhesions ----
@@ -508,7 +548,7 @@ export function buildCellscape() {
       const to = at.clone().addScaledVector(tangent, S * 0.14);
       cortex.push(filament(r, from, to, S * 0.006, S * 0.02));
     }
-    const cortexMat = addMesh(subject, merge(cortex), { color: 0xe86a8a, opacity: 0.55, rough: 0.5, spec: 0.3, rim: 0.8, mode: 'xray', xrayFloor: 0.3, doubleSide: true }, 3);
+    const cortexMat = addMesh(subject, merge(cortex), { color: 0xe86a8a, opacity: 0.68, rough: 0.5, spec: 0.3, rim: 0.8, mode: 'xray', xrayFloor: 0.3, doubleSide: true }, 3);
     tensionMats.push(cortexMat.material);
 
     const adhesionPts = [];
@@ -547,7 +587,10 @@ export function buildCellscape() {
     for (let k = 0; k < 8600; k++) {
       const f = pickFamily(r);
       const item = {
-        p: cytoPoint(r),
+        /* 0.88, not 0.92: the machines stop short of the membrane, leaving a
+           cortical clear band where only the actin mesh and the fine grain
+           live — the layered, compartmentalised read of a sectioned cell. */
+        p: freePt(0.88),
         s: S * lerp(f.s[0], f.s[1], r()),
         c: new THREE.Color(f.c),
         q: randQuat(r),
@@ -578,7 +621,7 @@ export function buildCellscape() {
     const items = [];
     for (let k = 0; k < 12000; k++) {
       items.push({
-        p: cytoPoint(r, 0.95),
+        p: freePt(0.95),
         s: S * (0.004 + 0.007 * r()),
         c: pick(fine, r),
         q: randQuat(r),
@@ -587,6 +630,39 @@ export function buildCellscape() {
     const m = crowdMesh(ico, items);
     m.renderOrder = 1;
     m.userData.congestAmp = 1;
+    subject.add(m);
+    crowds.push(m);
+  }
+  {
+    // rough-ER ribosomes — bound to the sheets, so they neither jitter freely
+    // nor migrate under congestion; the ER reads as a studded membrane system
+    const items = erStuds.map((p) => ({
+      p,
+      s: S * (0.011 + 0.006 * r()),
+      c: new THREE.Color(0xeaa62e),
+      q: randQuat(r),
+    }));
+    const m = crowdMesh(ico, items);
+    m.renderOrder = 3;
+    m.userData.congestAmp = 0;
+    subject.add(m);
+    crowds.push(m);
+  }
+  {
+    // nuclear pores — gold rings of the envelope, the nucleus's own signature
+    const items = [];
+    for (let k = 0; k < 130; k++) {
+      const dir = V(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1).normalize();
+      items.push({
+        p: V(nc.x + dir.x * NUC.r * S, nc.y + dir.y * NUC.r * 0.94 * S, nc.z + dir.z * NUC.r * S),
+        s: S * (0.016 + 0.008 * r()),
+        c: new THREE.Color(0xd8b04a),
+        q: randQuat(r),
+      });
+    }
+    const m = crowdMesh(ico, items);
+    m.renderOrder = 6;
+    m.userData.congestAmp = 0;
     subject.add(m);
     crowds.push(m);
   }

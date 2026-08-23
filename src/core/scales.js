@@ -356,7 +356,11 @@ export class ScaleManager {
           const stiff = (sv.stiffness[a] + sv.stiffness[b]) * 0.5;
           const visc = (sv.viscosity[a] + sv.viscosity[b]) * 0.5;
           const press = (sv.pressure[a] + sv.pressure[b]) * 0.5;
-          congest = clamp(stiff * 1.1 + visc * 0.7 + press * 0.6, 0, 1);
+          /* shaped fast-rise: a moderate intervention applied through the UI
+             (falloff and all) must already read unmistakably in the cell,
+             not only the direct-hit maximum */
+          const raw = clamp(stiff * 1.2 + visc * 0.8 + press * 0.7, 0, 1);
+          congest = raw * (2 - raw);
         }
         this.cell.update(dt, {
           blend: cellBlend,

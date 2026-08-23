@@ -321,7 +321,10 @@ What the shading spends, and why:
   drives it: the cell stretches with the muscle element the spindle reads, stress fibres and
   focal adhesions brighten with strain and strain rate, and the crowd stills when the physiology
   is held. A fine-grain matrix of ~12 000 muted granules underlies the coloured families —
-  multi-scale crowding is what makes a reconstruction read as packed rather than sparse — and the
+  multi-scale crowding is what makes a reconstruction read as packed rather than sparse — while the
+  organelles sit in *structural clearings* the crowd samples around, the ER carries its own bound
+  ribosome studs and the nuclear envelope its gold pores, so every compartment stays a figure over
+  the granular ground instead of drowning in it — and the
   crowd *congests*: restriction, compression and load applied with the whole-body tools raise the
   solver's own stiffening/viscosity/pressure fields at this cell's element, and the complexes
   respond by drifting into condensation clumps, slowing their Brownian seethe, running the stress
@@ -447,8 +450,8 @@ The cellular interior is the newest and heaviest instanced content, and it has i
 diagnostics — `cell crowd`, shown as `drawn/full · blend` whenever the tier is in view. Procedure:
 
 1. Start at **High**, locked. Press <kbd>6</kbd> (or click **Cell** on the rail) and let the descent
-   land; the read-out should show `22564/22600 · blend 1.00` at High/Ultra, `~14464` at Medium,
-   `2260` at Low.
+   land; the read-out should show `23324/23360 · blend 1.00` at High/Ultra, `~14900` at Medium,
+   `2347` at Low.
 2. Orbit slowly for ten seconds, then wheel in to a ~15 µm span (the floor) and back out to the
    receptor tier, watching frame time — the crossfade and the membrane crossing are the moments a
    real GPU could hitch on shader or buffer residency, and they should not.
@@ -463,7 +466,7 @@ diagnostics — `cell crowd`, shown as `drawn/full · blend` whenever the tier i
    of seconds — the ramp advances per frame.
 
 What good looks like at 1080p: on a mid-range discrete GPU (or Apple silicon) the Cell tier at High
-should sit comfortably inside 16 ms with the full 22 600-complex crowd — instanced in five draw
+should sit comfortably inside 16 ms with the full 23 360-complex crowd — instanced in five draw
 calls, it is cheaper than the whole-body translucent fill. Integrated graphics at Medium should
 hold 60 fps with the ~14 500-complex crowd; Low is expected to be fluid anywhere, drawing a tenth
 of the crowd and no matrix context.
