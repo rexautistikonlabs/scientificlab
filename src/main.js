@@ -285,7 +285,7 @@ async function main() {
     return a && b ? { a, b } : null;
   }
 
-  scales.onAnchor = (s, point) => {
+  scales.onAnchor = (s, point, { announce = true } = {}) => {
     const pair = s ? elementNamesFor(s, point) : null;
     if (pair) {
       const unit = new SpindleUnit({ solver, nodeA: pair.a, nodeB: pair.b, label: s.name, muscleId: s.key });
@@ -302,7 +302,9 @@ async function main() {
       store.setMicroFocus(cls);
       afferent.setFocus(cls);
     }
-    if (s) hud.toast(`Microscope anchored to <b>${s.name}</b> — ${RECEPTORS[cls].name} bed`, 3200);
+    // announced only when the anchor structure actually changed — a roam onto
+    // the same tissue is not news
+    if (s && announce) hud.toast(`Microscope anchored to <b>${s.name}</b> — ${RECEPTORS[cls].name} bed`, 3200);
   };
 
   /* ============================================================

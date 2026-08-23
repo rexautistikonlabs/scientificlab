@@ -331,7 +331,6 @@ export class ScaleManager {
       this._setAnchor(this.controls.destinationTarget());
       this._frameMicroSubject();
     }
-    if (!m.active && wasActive) this._anchor = null;
 
     /* ---- micro-anatomy ----
        The blend leads the mode: it starts a third of the way through the Tissue
@@ -365,17 +364,23 @@ export class ScaleManager {
          Roaming is the escape hatch: drag the look-at point clearly outside
          the current subject's neighbourhood and the microscope re-anchors to
          wherever you have gone — following your intent, not your every pan. */
-      if (m.active && this._anchor) {
+      /* An anchor exists for as long as micro content is visible — including
+         the blend band before the mode latches and after it releases. Without
+         one the subject fell back to following the live look-at point, which
+         is exactly the drag-with-pan feel a fixed specimen must not have. */
+      if (!this._anchor) {
+        this._setAnchor(this.controls.destinationTarget(), null, { announce: false });
+      } else {
         const model = this.micro.models.get(this._microActive);
         const roam = Math.max((model ? this._extentOf(model) : 0.006) || 0.006, 0.004) * 2.4;
-        // destination, not transit: one clean re-anchor per journey
+        // destination, not transit: one clean re-anchor per journey — and a
+        // roam keeps the user's orientation instead of snapping to face them
         const dest = this.controls.destinationTarget();
         if (dest.distanceTo(this._anchor.pos) > roam) {
-          this._setAnchor(dest);
+          this._setAnchor(dest, null, { face: false });
         }
       }
-      const anchorPos = this._anchor ? this._anchor.pos : this.controls.target;
-      this._microPos.lerp(anchorPos, clamp(dt * 6, 0, 1));
+      this._microPos.lerp(this._anchor.pos, clamp(dt * 6, 0, 1));
       this.micro.root.position.copy(this._microPos);
       this.micro.root.quaternion.slerp(this._q, clamp(dt * 4, 0, 1));
       const model = this.micro.models.get(this._microActive);
@@ -398,6 +403,7 @@ export class ScaleManager {
     } else if (this._microActive) {
       for (const [, m] of this.micro.models) m.group.visible = false;
       this._microActive = null;
+      this._anchor = null;
     }
 
     /* ---- the cellular interior ---- */
@@ -492,15 +498,28 @@ export class ScaleManager {
    * own network element, which is what keeps strain, congestion and the whole
    * cellular response local to wherever the user is actually looking.
    */
-  _setAnchor(point, structure = null) {
+  /**
+   * @param {object}  o
+   * @param {boolean} o.face      orient the subject toward the camera — true
+   *                              only for a genuine arrival (mode entry, an
+   *                              explicit selection). A roam re-anchor keeps
+   *                              the orientation the user has been looking at:
+   *                              a specimen that snaps around to face you on
+   *                              every large pan is the "locked camera" feel.
+   * @param {boolean} o.announce  toast the anchor — suppressed for roaming
+   *                              onto the same structure.
+   */
+  _setAnchor(point, structure = null, { face = true, announce = true } = {}) {
     const s = structure || this._anchorCandidate(point);
+    const changed = (s?.key || null) !== (this._anchor?.key ?? undefined);
     this._anchor = { pos: point.clone(), key: s?.key || null };
-    this.onAnchor?.(s, point);
-    // face the camera once, at anchor time
-    const dir = this._vec.subVectors(this.camera.position, point);
-    dir.y = 0;
-    if (dir.lengthSq() > 1e-12) {
-      this._q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(dir.x, dir.z));
+    this.onAnchor?.(s, point, { announce: announce && changed });
+    if (face) {
+      const dir = this._vec.subVectors(this.camera.position, point);
+      dir.y = 0;
+      if (dir.lengthSq() > 1e-12) {
+        this._q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(dir.x, dir.z));
+      }
     }
   }
 
