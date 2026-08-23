@@ -511,10 +511,21 @@ location.reload();</pre>
           <section class="help-sec" id="h-micro">
             <h3>7 · Microscope mode</h3>
             <p>
-              Past the Tissue tier — or <kbd>Shift</kbd>+<kbd>M</kbd> — one muscle spindle takes over, driven by
-              the same solve that moves the whole body. The view is <b>schematic and model-driven</b>, not
-              microscopy.
+              Past the Tissue tier — or <kbd>Shift</kbd>+<kbd>M</kbd> — the microscope <b>anchors to the anatomy
+              under your look-at point</b>: the structure you have selected if there is one, otherwise the nearest
+              tissue. It binds the micro-mechanics to that structure's own network element and opens the receptor
+              bed that actually lives there — spindle in mid-belly muscle, Golgi organ toward the myotendinous
+              junction, Ruffini in dense fascia, Meissner in skin, interoceptive terminals on viscera, Pacinian at
+              periosteum. Strain, firing and congestion all read the local solve at that site. The view is
+              <b>schematic and model-driven</b>, not microscopy.
             </p>
+            <ul class="ov-list">
+              <li><b>The camera is free at depth</b> — orbit, pan and dolly as at any scale; the subject holds
+                still instead of turning to face you. Roam clearly away and the microscope re-anchors to wherever
+                you have gone.</li>
+              <li><b>Selecting a structure while the microscope runs moves it there</b> — selection is the
+                “examine this” gesture at every scale.</li>
+            </ul>
             <ul class="ov-list">
               <li><b>Basic</b> (default) — firing from length and velocity. The drive this ROI was verified against.</li>
               <li>

@@ -36,6 +36,22 @@ const LOG_SPANS = SCALES.map((s) => Math.log(s.span));
 const MICRO_ENTER = 3.1;
 const MICRO_EXIT = 2.85;
 
+/** Layers a microscopic dive can anchor to — everything with real tissue. */
+const ANCHOR_LAYERS = new Set([
+  'muscle',
+  'chains',
+  'fasciaDeep',
+  'fasciaSup',
+  'fasciaVisc',
+  'skin',
+  'organ',
+  'bone',
+  'nerve',
+  'arterial',
+  'venous',
+  'lymph',
+]);
+
 /**
  * Display amplification of the spindle's axial strain.
  *
@@ -82,6 +98,16 @@ export class ScaleManager {
     /** the cellular-tier interior, built by anatomy/cellscape.js */
     this.cell = cell;
     this.cellBlend = 0;
+
+    /** Where the microscope is anchored: a fixed point and the structure it
+        belongs to. Set on mode entry, on selection, and when the user roams
+        far enough that following them is clearly what they want. Null when
+        the mode is off. */
+    this._anchor = null;
+    /** main.js hook: (structure|null, point) → rebinds the micro-mechanics
+        unit to the structure's own network element and picks the receptor
+        class that actually lives in that tissue. */
+    this.onAnchor = null;
 
     this.tier = 0;
     this.maxTier = SCALES.length - 1;
@@ -162,7 +188,12 @@ export class ScaleManager {
       i = this.maxTier;
     }
     const def = this.defaults[i];
-    const keepTarget = opts.keepTarget ?? (this.tier > 0.6 && i > 0);
+    /* Judged from the live camera span, not from the tier cached by the last
+       update: "snap to a structure, then jump deep" in one frame is a real
+       user path (double-click, then a tier key), and the cached tier still
+       said whole-body — which threw the kept target away and sent the dive to
+       the deep default instead of the structure the user just chose. */
+    const keepTarget = opts.keepTarget ?? (tierFor(this.controls.span) > 0.6 && i > 0);
     if (opts.instant) {
       this.controls.snapTo({
         target: keepTarget ? this.controls.target.clone() : def.center.clone(),
@@ -284,7 +315,11 @@ export class ScaleManager {
         this.store.emit('micro', 'auto');
       }
     }
-    if (m.active && !wasActive) this._frameMicroSubject();
+    if (m.active && !wasActive) {
+      this._setAnchor(this.controls.target);
+      this._frameMicroSubject();
+    }
+    if (!m.active && wasActive) this._anchor = null;
 
     /* ---- micro-anatomy ----
        The blend leads the mode: it starts a third of the way through the Tissue
@@ -308,17 +343,27 @@ export class ScaleManager {
            ending is a speck; re-frame on the switch, exactly as on entry. */
         if (refit) this._frameMicroSubject(true);
       }
-      // sit the model at the camera's look-at point, standing upright but turned
-      // to face the viewer so its internal structure reads
-      this._microPos.lerp(this.controls.target, clamp(dt * 6, 0, 1));
-      this.micro.root.position.copy(this._microPos);
-      const dir = new THREE.Vector3().subVectors(this.camera.position, this._microPos);
-      dir.y = 0;
-      if (dir.lengthSq() > 1e-12) {
-        const yaw = Math.atan2(dir.x, dir.z);
-        this._q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-        this.micro.root.quaternion.slerp(this._q, clamp(dt * 4, 0, 1));
+      /* The subject sits at the ANCHOR, not at the live look-at point, and it
+         faced the camera exactly once — at anchor time. Both used to update
+         every frame, which is what made the deep camera feel locked: pan and
+         the specimen glided along with you, orbit and it rotated to keep
+         showing the same face. A fixed subject is what makes the free camera
+         real — orbit shows its far side, pan moves you off it and back.
+
+         Roaming is the escape hatch: drag the look-at point clearly outside
+         the current subject's neighbourhood and the microscope re-anchors to
+         wherever you have gone — following your intent, not your every pan. */
+      if (m.active && this._anchor) {
+        const model = this.micro.models.get(this._microActive);
+        const roam = Math.max((model ? this._extentOf(model) : 0.006) || 0.006, 0.004) * 2.4;
+        if (this.controls.target.distanceTo(this._anchor.pos) > roam) {
+          this._setAnchor(this.controls.target);
+        }
       }
+      const anchorPos = this._anchor ? this._anchor.pos : this.controls.target;
+      this._microPos.lerp(anchorPos, clamp(dt * 6, 0, 1));
+      this.micro.root.position.copy(this._microPos);
+      this.micro.root.quaternion.slerp(this._q, clamp(dt * 4, 0, 1));
       const model = this.micro.models.get(this._microActive);
       if (model) {
         for (const mm of model.materials) {
@@ -412,6 +457,61 @@ export class ScaleManager {
    * afterwards is the user's business and is left alone; this is the framing the
    * mode opens with, not a leash.
    */
+  /**
+   * Resolve and set the microscope's anchor at a point.
+   *
+   * The structure is the user's explicit selection when there is exactly one,
+   * otherwise the nearest anchorable structure to the point — so a dive into
+   * the forearm lands on forearm tissue, not on a preset site chosen at build
+   * time. The onAnchor hook rebinds the micro-mechanics to that structure's
+   * own network element, which is what keeps strain, congestion and the whole
+   * cellular response local to wherever the user is actually looking.
+   */
+  _setAnchor(point, structure = null) {
+    const s = structure || this._anchorCandidate(point);
+    this._anchor = { pos: point.clone(), key: s?.key || null };
+    this.onAnchor?.(s, point);
+    // face the camera once, at anchor time
+    const dir = this._vec.subVectors(this.camera.position, point);
+    dir.y = 0;
+    if (dir.lengthSq() > 1e-12) {
+      this._q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(dir.x, dir.z));
+    }
+  }
+
+  /** Nearest anchorable structure to a point; explicit selection wins. */
+  _anchorCandidate(point) {
+    if (this.store.selection.size === 1) {
+      const s = this.registry.get([...this.store.selection][0]);
+      if (s && s.nodes.length) return s;
+    }
+    let best = null;
+    let bestD = Infinity;
+    for (const s of this.registry.list) {
+      if (!ANCHOR_LAYERS.has(s.layer) || !s.nodes.length) continue;
+      // span-discounted, so a large structure whose envelope contains the
+      // point beats a small one whose centre happens to be marginally closer
+      const d = point.distanceTo(s.center) - s.span * 0.25;
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Anchor the microscope to a specific structure — the selection path.
+   * Flies the look-at point there; the anchor is set immediately so the
+   * subject and the mechanics arrive before the camera does.
+   */
+  reanchorTo(s) {
+    if (!s || !s.nodes.length || !this.store.micro.active) return false;
+    this.controls.flyTo({ target: s.center.clone(), duration: 1.1 });
+    this._setAnchor(s.center, s);
+    return true;
+  }
+
   /**
    * @param {boolean} fit  false (entry): only widen, never steal a zoom the
    *                       user already made. true (subject switch): fly to the

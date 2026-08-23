@@ -32,7 +32,7 @@ import { buildBody } from './anatomy/index.js';
 import { setReceptorDensity } from './anatomy/receptors.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
 import { buildCellscape } from './anatomy/cellscape.js';
-import { buildSpindle, MICRO_ROIS } from './sim/spindle.js';
+import { buildSpindle, SpindleUnit, MICRO_ROIS } from './sim/spindle.js';
 import { PROTOCOLS as MICRO_PROTOCOLS, simulateProtocol, peaksPerRepetition, ExtendedDrive } from './sim/spindle_extended.js';
 import { P as P_MICRO, listParams, setParam, BLUM_2020 } from './data/micro/literature_params.js';
 import { runExperiment as runMicroExperiment, summarise as summariseExperiment, PERTURBATIONS, perturbationTerms } from './sim/experiment.js';
@@ -212,6 +212,98 @@ async function main() {
 
   const scales = new ScaleManager({ store, controls, registry, receptors, micro, signals, camera, spindle: microSpindle, cell });
   scales.applyEntitlements();
+
+  /* ============================================================
+     Structure-anywhere microscopy
+
+     A dive used to land on one preset site regardless of where the user was.
+     Now the microscope anchors to whatever anatomy the dive actually entered:
+     the mechanics unit rebinds to that structure's own network element (the
+     same SpindleUnit class, unchanged — element kinematics are honest for any
+     tissue), and the receptor bed shown is the class that actually lives in
+     that tissue. Strain, congestion and the whole cellular response therefore
+     read the local solve wherever the user is looking.
+     ============================================================ */
+
+  /** index → node name, for rebinding the unit through its named-node API */
+  const nodeNameOf = (() => {
+    const m = new Map();
+    for (const [name, rec] of net.byName) m.set(rec.i, name);
+    return (i) => m.get(i);
+  })();
+
+  /** Which receptor class lives in each tissue — the bed a dive should show. */
+  const ANCHOR_CLASS = {
+    muscle: 'spindle',
+    chains: 'golgi',
+    fasciaDeep: 'ruffini',
+    fasciaSup: 'ruffini',
+    fasciaVisc: 'intero',
+    skin: 'meissner',
+    organ: 'intero',
+    bone: 'pacinian',
+    nerve: 'free',
+    arterial: 'intero',
+    venous: 'intero',
+    lymph: 'free',
+  };
+
+  function classForAnchor(s, point) {
+    if (!s) return 'spindle';
+    if (s.layer === 'muscle') {
+      // toward the ends of a belly the dive is at the myotendinous junction,
+      // which is Golgi territory; mid-belly is spindle territory
+      return point.distanceTo(s.center) > s.span * 0.3 ? 'golgi' : 'spindle';
+    }
+    return ANCHOR_CLASS[s.layer] || 'free';
+  }
+
+  /** The structure's own network element nearest the dive point — preferring
+      elements with both ends inside the structure over ones merely touching. */
+  function elementNamesFor(s, point) {
+    const set = new Set(s.nodes);
+    let best = -1;
+    let bestScore = Infinity;
+    for (let e = 0; e < solver.elemCount; e++) {
+      const a = solver.ea[e];
+      const b = solver.eb[e];
+      const inA = set.has(a);
+      const inB = set.has(b);
+      if (!inA && !inB) continue;
+      const mx = (solver.home[a * 3] + solver.home[b * 3]) / 2 - point.x;
+      const my = (solver.home[a * 3 + 1] + solver.home[b * 3 + 1]) / 2 - point.y;
+      const mz = (solver.home[a * 3 + 2] + solver.home[b * 3 + 2]) / 2 - point.z;
+      const score = Math.sqrt(mx * mx + my * my + mz * mz) + (inA && inB ? 0 : 0.5);
+      if (score < bestScore) {
+        bestScore = score;
+        best = e;
+      }
+    }
+    if (best < 0) return null;
+    const a = nodeNameOf(solver.ea[best]);
+    const b = nodeNameOf(solver.eb[best]);
+    return a && b ? { a, b } : null;
+  }
+
+  scales.onAnchor = (s, point) => {
+    const pair = s ? elementNamesFor(s, point) : null;
+    if (pair) {
+      const unit = new SpindleUnit({ solver, nodeA: pair.a, nodeB: pair.b, label: s.name, muscleId: s.key });
+      if (unit.resolved) {
+        unit.setModel(store.micro.model);
+        unit.setGamma('static', store.micro.gammaStatic);
+        unit.setGamma('dynamic', store.micro.gammaDynamic);
+        microSpindle = unit;
+        scales.spindle = unit;
+      }
+    }
+    const cls = classForAnchor(s, point);
+    if (store.microFocus !== cls) {
+      store.setMicroFocus(cls);
+      afferent.setFocus(cls);
+    }
+    if (s) hud.toast(`Microscope anchored to <b>${s.name}</b> — ${RECEPTORS[cls].name} bed`, 3200);
+  };
 
   /* ============================================================
      Quality
@@ -436,15 +528,11 @@ async function main() {
       }
     }
 
-    /* Entering the mode once puts the spindle on screen, because the spindle is
-       the only receptor v1 models mechanically — showing a Pacinian corpuscle
-       under a caption about intrafusal stretch would be a lie about what is
-       being computed. Only the *transition* forces it: picking another receptor
-       while already inside stays picked, and the other models simply hold a
-       fixed shape, which the read-out and the caption both make plain. */
+    /* Mode transitions are tracked for the toast only: which receptor bed the
+       mode opens with is decided by the anchor now — the class that actually
+       lives in the tissue the dive entered — via scales.onAnchor above. */
     if (store.micro.active !== microWasActive) {
       microWasActive = store.micro.active;
-      if (store.micro.active && store.microFocus !== 'spindle') store.setMicroFocus('spindle');
     }
   });
 
@@ -597,6 +685,13 @@ async function main() {
     for (const s of registry.list) {
       const want = store.selection.has(s.key) ? 1 : 0;
       if (s._hi !== want) registry.setHighlight(s.key, want);
+    }
+    /* Selecting a structure while the microscope is running moves the
+       microscope to it — selection is the "examine this" gesture, and at
+       depth "this" means this structure's local tissue. */
+    if (store.micro.active && store.selection.size === 1) {
+      const s = registry.get([...store.selection][0]);
+      if (s) scales.reanchorTo(s);
     }
   });
 

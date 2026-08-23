@@ -313,6 +313,17 @@ What the shading spends, and why:
   epidermal ridges over the Meissner corpuscle, the muscle–tendon junction through the Golgi
   organ, fat lobules and septa around the Pacinian. Beds are presentation only: not solver-bound,
   not pickable, no IDs.
+- **Structure-anywhere microscopy.** A deep dive anchors to the anatomy it entered, not to a
+  preset site: the selected structure when there is one, otherwise the nearest tissue to the
+  look-at point. The micro-mechanics unit rebinds to that structure's own network element (the
+  same spindle-unit class, unchanged — element kinematics are honest for any tissue) and the
+  receptor bed shown is the class that lives in that tissue: spindle in mid-belly muscle, Golgi
+  organ toward the myotendinous junction, Ruffini in dense fascia, Meissner in skin,
+  interoceptive terminals on serosa, Pacinian at periosteum. Strain, firing and the cellular
+  congestion response therefore read the local solve wherever the user is looking. The deep
+  camera is fully free — the subject is fixed at its anchor and faced the camera exactly once,
+  so orbit shows its far side and pan moves off it; roaming clearly away re-anchors the
+  microscope, and selecting a structure while it runs moves it there.
 - **The cellular interior.** The sixth tier descends into a schematic fibroblast-like cell:
   a sectionable membrane, nucleus and organelles, cytoskeletal filaments, and a molecular crowd
   of several thousand instanced complexes coloured by family, with per-instance Brownian motion
