@@ -62,6 +62,13 @@ Each of these is real arithmetic over real state. Each also compresses something
 multi-dimensional into one bar, which is why it is labelled rather than
 presented as a measurement.
 
+None of these composites — Network Load, Signal Integrity, or any other Level C
+meter — is, or measures, "mechanical restriction as specified in Kim (2026)".
+That quantity is defined in the research literature as latent, vector-valued,
+and instrument-inferred; the restriction slider here is a modelling assumption
+about delivered excursion, and the meters summarise the teaching network's
+solved state under that assumption.
+
 ### Network load
 ```
 load% = RMS(tension over all 469 elements) / RMS(same, at the calibrated resting state) × 100
@@ -154,8 +161,9 @@ than tissue does, which is not a claim this product makes.
 
 ## What a perturbation result means
 
-> In-silico prediction under the selected model — not human data, and not
-> evidence for or against any hypothesis.
+> In-silico prediction under the selected model, given an assumed mechanical
+> change — not human data, and neither support nor falsification for any
+> hypothesis or human research programme.
 
 That sentence is in `layers.js` as `EXPERIMENT_CAPTION` and appears under every
 experiment result. The reasoning behind it:

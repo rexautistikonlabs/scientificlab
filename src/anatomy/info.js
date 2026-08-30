@@ -252,7 +252,7 @@ export const LAYER_INFO = {
     pathway: 'dorsalColumn',
   },
   chains: {
-    tissue: 'Serially continuous myofascial tract',
+    tissue: 'Serially continuous myofascial tract (modelled; continuity is hypothesis S1 in Kim 2026)',
     modulus: 'composite; governed by the least stiff link',
     tau: 'summed creep τ ≈ 10–60 s',
     role: 'Long-range transmission. Load applied at one end is measurable at the other.',

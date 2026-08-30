@@ -93,7 +93,7 @@ export const VALIDATION_ROWS = [
     id: 'solver',
     module: 'Live mechanical / tensegrity solve',
     surface: 'sim/tensegrity.js — position-based dynamics, tension-only cables',
-    anchors: ['citation pending — biotensegrity literature for the qualitative premise', 'PBD is a standard method, not a claim about tissue'],
+    anchors: ['none — the tensegrity-style network is a teaching metaphor, not a tissue theory the product asserts', 'PBD is a standard method, not a claim about tissue'],
     target: 'Load-distribution pattern compared against a published whole-body measurement, or explicit statement that it is qualitative.',
     status: 'partial',
     evidence:
@@ -267,8 +267,9 @@ export const VALIDATION_ROWS = [
     target: 'A continuum formulation with a constitutive law, meshing and convergence testing.',
     status: 'out_of_scope_v1',
     evidence:
-      'None. The solver is position-based dynamics on a discrete network — deliberately, because it runs at 60 fps in a ' +
-      'browser and expresses the continuity premise. It is not a stress analysis and does not report stress.',
+      'None. The solver is position-based dynamics on a discrete teaching network — deliberately, because it runs at 60 fps ' +
+      'in a browser and expresses modelled continuity as a teaching pattern (continuity itself is hypothesis S1 in the ' +
+      'research literature, under test, not assumed). It is not a stress analysis and does not report stress.',
     next: 'Leave out of v1. Adding it would change what the product is, not just what it computes.',
   },
   {

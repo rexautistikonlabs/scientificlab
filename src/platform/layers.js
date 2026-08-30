@@ -205,7 +205,8 @@ export function outputsIn(layer) {
  * thing and changing it changes all of them at once.
  */
 export const EXPERIMENT_CAPTION =
-  'In-silico prediction under the selected model — not human data, and not evidence for or against any hypothesis.';
+  'In-silico prediction under the selected model, given an assumed mechanical change — not human data, ' +
+  'and neither support nor falsification for any hypothesis or human research programme.';
 
 /**
  * The longer form, for the disclosure panel.

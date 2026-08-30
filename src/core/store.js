@@ -123,7 +123,9 @@ export const LAYERS = [
     color: '#8ea8bd',
     opacity: 0.42,
     visible: false,
-    blurb: 'The abstract biotensegrity graph the whole model is solved on.',
+    blurb:
+      'The discrete teaching network (position-based dynamics) the whole model is solved on — ' +
+      'a teaching metaphor for continuous tissue, not a measurement model of it.',
   },
 ];
 
@@ -154,7 +156,10 @@ export const TOOLS = [
     id: 'restriction',
     name: 'Restriction',
     verb: 'Restricted',
-    blurb: 'Reduces local glide and extensibility — stiffer, slower, more viscous.',
+    blurb:
+      'Reduces local glide and extensibility — stiffer, slower, more viscous. A modelling ' +
+      'assumption about delivered excursion, not the latent, vector-valued, instrument-inferred ' +
+      '“mechanical restriction” of Kim (2026).',
   },
   {
     id: 'shear',

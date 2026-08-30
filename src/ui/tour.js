@@ -42,7 +42,7 @@ export const TOUR_KEY = 'continuum_tour_v1';
  * record whose version does not match is treated as no record, so everyone gets
  * the new tour once and once only.
  */
-export const TOUR_VERSION = '1';
+export const TOUR_VERSION = '2';
 
 export class Tour {
   /**
@@ -118,7 +118,7 @@ export class Tour {
         id: 'welcome',
         title: 'Welcome to CONTINUUM',
         body:
-          'A simulation of the body as one continuous tension network — for research and education, not for ' +
+          'A simulation that models the body as one continuous tension network — for research and education, not for ' +
           'diagnosis. Nine short steps and you will know your way around.',
       },
       {
@@ -166,9 +166,9 @@ export class Tour {
         title: 'Load the tissue',
         body: pro
           ? 'Pick tension, compression, restriction, shear or release, set a magnitude and radius, and apply it to ' +
-            'your selection. Force redistributes along the whole myofascial line — watch the far end move.'
+            'your selection. In the model, force redistributes along the whole modelled line — watch the far end move.'
           : 'Mechanical intervention applies tension, compression, restriction, shear or release to a selection, ' +
-            'and force redistributes along the whole myofascial line. Professional unlocks it.',
+            'and in the model force redistributes along the whole modelled line. Professional unlocks it.',
         link: pro ? null : 'See the plan',
       },
       {
@@ -202,7 +202,7 @@ export class Tour {
         id: 'done',
         title: 'Go and explore',
         body:
-          'Load one end of a myofascial line and watch the other end answer. Everything you see is a simulation — ' +
+          'Load one end of a modelled line and watch the other end answer. Everything you see is a simulation — ' +
           'not a medical device, not diagnostic, and not about any individual body.',
       },
     ];

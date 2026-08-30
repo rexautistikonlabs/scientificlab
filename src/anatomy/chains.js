@@ -3,7 +3,8 @@
    See PROPRIETARY_NOTICE.md. */
 
 /* ============================================================
-   Continuous myofascial paths.
+   Modelled myofascial paths (continuity is hypothesis S1 in Kim 2026,
+   under test, not an anatomical premise this file asserts).
 
    These are the long-range force-transmitting tracks of the model.
    The same definition is used twice: once to draw the fascial ribbon

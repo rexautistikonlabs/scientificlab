@@ -1,8 +1,9 @@
 # CONTINUUM
 
-**Living biotensegrity and afferent flow** — an interactive, multi-scale simulation of the body
-as a single continuous tension network, from the whole body down through individual
-mechanoreceptors to the interior of a single cell.
+**Living biotensegrity and afferent flow** — an interactive, multi-scale simulation that models
+the body as a single continuous tension network (a teaching idealisation, not an anatomical
+claim), from the whole body down through individual mechanoreceptors to the interior of a
+single cell.
 
 A standalone freemium product on an extensible platform: a compact core engine, a fully selectable
 living body, and every property, dataset and user artefact attached by permanent anatomical ID.
@@ -22,22 +23,28 @@ Requires a WebGL2 browser and Node ≥ 22.12 to build.
 
 ## What it is
 
-The model treats the body the way the biotensegrity literature describes it: a pre-stressed
-network of continuous tension elements with discontinuous compression elements floating inside
-it. No bone is stacked on the one below it; nothing pivots on a fulcrum. The consequence — and
-the thing the product exists to demonstrate — is that **a mechanical change anywhere is a
-mechanical change everywhere**, and that the afferent information reaching the central nervous
-system depends on the mechanical state of the tissue the signal had to travel through.
+The model *represents* the body as a pre-stressed network of continuous tension elements with
+discontinuous compression elements floating inside it — a tensegrity-style **teaching metaphor**,
+chosen because it makes force redistribution visible, not asserted as the true theory of tissue.
+No bone in the model is stacked on the one below it; nothing pivots on a fulcrum. The consequence —
+and the thing the product exists to demonstrate — is that **in this model a mechanical change
+anywhere is a mechanical change everywhere**, and that the modelled afferent information reaching
+the central nervous system depends on the mechanical state of the tissue path the signal had to
+travel through.
 
 Three claims are modelled quantitatively enough to be watched happening:
 
-**1. Continuity.** Load one end of a myofascial track and tension rises along its whole length,
-attenuating with distance the way a real network does. Tensioning the left plantar fascia and
-nothing else:
+**1. Continuity.** Load one end of a modelled myofascial track and tension rises along its whole
+length, attenuating with distance. Tensioning the left plantar fascia and nothing else:
 
 | plantar | calf | pelvis | lumbar | thoracic | cervical | cranium | whole network |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | +53 % | +8.8 % | +7.1 % | +12.1 % | +4.3 % | +1.0 % | +4.3 % | +15.9 % |
+
+This attenuation profile is a **modelled pattern in a discrete teaching network, not a measured
+one** — nothing external anchors its magnitudes. Myofascial continuity itself is, in the research
+literature, a secondary hypothesis under test (S1 in Kim 2026), not an established premise, and it
+is not advanced there for the orbit or the middle ear, which are anatomically sequestered.
 
 **2. Viscoelastic filtering.** Restriction is modelled as a loss of glide, which lengthens the
 relaxation time constant of the tissue path — attenuating amplitude, adding phase lag and
@@ -59,6 +66,38 @@ Vibration sense is effectively abolished while slow tonic channels are largely p
 **3. Coupled physiology.** Compressing the diaphragm reduces achieved breathing excursion to 19 %
 of commanded, and the rest of the system follows: intra-abdominal pressure 0.34 → 0.72, venous
 return 0.93 → 0.42, lymph transport 0.72 → 0.28, overall signal integrity 0.99 → 0.78.
+
+## Relationship to the research literature
+
+CONTINUUM is a RexMetrix Technologies, LLC simulation for exploring multi-scale anatomy and
+simplified receptor models. It is not an implementation of the Foundation measurement programme,
+not a test of mechanical restriction as specified in Kim (2026), and not a diagnostic tool.
+
+Where this repository cites Hai Young Kim (2026), *Tissue Mechanics, Afferent Signalling, and
+Physiological Regulation* (v1.0 with Amendment 01) — a research-programme specification hosted by
+the Rex Autistikon Research Foundation, Inc. — it cites a **specification of proposed
+measurements**, not a dataset CONTINUUM was fitted to or validated against. CONTINUUM is not that
+programme's official software, and the Foundation endorses no commercial product.
+
+The specific alignments that follow from Amendment 01:
+
+- **Organising principle.** What CONTINUUM borrows from that literature is anatomical, not
+  fascial: *a cranial-nerve-adjacent and midline-visceral mechanosensory array, unified by high
+  mechanoreceptor density and short afferent paths to brainstem and autonomic nuclei.*
+  CONTINUUM is not a fascia simulator, and it does not present biotensegrity as a theory of
+  tissue — the solved network is a discrete teaching network (position-based dynamics), a
+  teaching metaphor for continuous tissue, not the continuum measurement model of the book.
+- **Myofascial continuity is hypothesis S1**, under test, not a premise. The modelled
+  continuity paths here are model content; the hypothesis is not advanced for the orbit or the
+  middle ear, which are anatomically sequestered.
+- **"Mechanical restriction" in Kim (2026) is latent, vector-valued and instrument-inferred.**
+  The restriction slider here (and the `k_trans` / lag terms behind it) is a modelling assumption
+  about delivered excursion. No meter in this product — Network Load, Signal Integrity, or any
+  other Level C composite — is that quantity or a measurement of it.
+- **Standing honesty.** Nothing in the cited book has been tested under its own framework.
+  CONTINUUM's experiment results show the predicted change in the Layer B receptor model given
+  an assumed mechanical change; they neither support nor falsify any hypothesis or human
+  research programme. See `VALIDATION_MATRIX.md` for the full falsification note.
 
 ## Architecture
 
