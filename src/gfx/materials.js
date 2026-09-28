@@ -206,6 +206,7 @@ const TISSUE_FRAG = /* glsl */ `
   uniform float uFacing;      // 1 = flip back-facing normals (double-sided shells)
   uniform float uStripe;      // fibre striation strength
   uniform float uStripeFreq;
+  uniform float uMicroHint;   // pore-scale surface hint (skin), High/Ultra only
   uniform float uXray;        // 1 = rim-dominant accumulation
   uniform float uXrayFloor;   // how much a face-on surface still contributes
   uniform float uOverlay;     // 1 = a research dataset is painted on this structure
@@ -272,6 +273,16 @@ const TISSUE_FRAG = /* glsl */ `
       float st = sin(vUv.x * uStripeFreq + vUv.y * 5.0) * 0.5 + 0.5;
       // darken-only: fibre grooves shade, they do not glow
       albedo *= mix(1.0, 0.68 + 0.32 * st, uStripe);
+    }
+
+    /* Pore-scale surface hint — a faint luminance grain on skin so it reads as
+       an organic surface at close range. A hint, not a dermatology atlas: two
+       sine products, ±3 % of albedo, and gated with the cheap-light flag so
+       the Low tier pays nothing. */
+    if (uMicroHint > 0.001 && uCheapLight < 0.5) {
+      float mg = sin(vUv.x * 431.0) * sin(vUv.y * 383.0) * 0.5
+               + sin(vUv.x * 97.0 + vUv.y * 211.0) * 0.5;
+      albedo *= 1.0 + uMicroHint * 0.03 * mg;
     }
 
     vec3 col;
@@ -347,6 +358,7 @@ const BASE_UNIFORMS = () => ({
   uFacing: { value: 0.0 },
   uStripe: { value: 0.0 },
   uStripeFreq: { value: 120.0 },
+  uMicroHint: { value: 0.0 },
   uXray: { value: 0.0 },
   uXrayFloor: { value: 0.07 },
   uOverlay: { value: 0.0 },
@@ -384,6 +396,7 @@ export function tissueMaterial(o = {}) {
   u.uLocalDisp.value = o.disp ?? 1;
   u.uStripe.value = o.stripe ?? 0;
   u.uStripeFreq.value = o.stripeFreq ?? 120;
+  u.uMicroHint.value = o.micro ?? 0;
   u.uFacing.value = o.doubleSide ? 1 : 0;
 
   const xray = o.mode === 'xray';

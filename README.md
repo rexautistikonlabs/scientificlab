@@ -237,7 +237,7 @@ Dataset and parameter-set values may be keyed by ID, by alias, or by region code
 
 | | Explorer (free) | Professional |
 | --- | --- | --- |
-| Scales | body, region | all five, continuous, with progressive cutaway and receptor micro-anatomy |
+| Scales | body, region | all six, continuous — body to cell, with progressive cutaway and receptor micro-anatomy |
 | Layers | bone, muscle, organs, skin | every layer: superficial/deep/visceral fascia, myofascial lines, nerves, vessels, lymph, receptors |
 | Selection | single | unlimited multi-select, isolate, hide, per-layer opacity |
 | Intervention | — | tension, compression, restriction, shear |
@@ -459,6 +459,14 @@ untouched, and none of these terms exists on the Low tier's cost path (see the t
 | Teaching-overlay markers | 69 instanced symbols at every tier (CPU-anchored, hidden past the tissue tier) | | | |
 | Network cables | 469 instanced camera-facing ribbons; endpoints, width and the amber→copper ramp all read from the field texture, so the overlay costs zero per-frame CPU and fades out past the tissue tier | | | |
 | Suits | integrated graphics, older laptops, software rendering | recent integrated graphics, mid-range laptops | discrete GPUs, Apple silicon | modern discrete GPUs, high-DPI displays |
+
+**What the picture is.** A schematic living model, not a cadaver scan: every surface is procedural
+geometry under a three-light dissection-plate rig, with realism spent where it aids identification —
+ivory-satin bone, striated drier muscle, thin translucent fascia, a pore-scale hint on skin at High
+and Ultra (two sine products, gated off with the cheap-light flag so Low pays nothing), and the
+section rim on every depth-slab cut. No photogrammetry, no claim of 1:1 cadaver fidelity. Frame
+times quoted in this repository's commit notes were measured under SwiftShader software
+rasterisation unless a GPU is named — software numbers characterise the rasteriser, not a GPU.
 
 Tension colouring, rim lighting, force propagation, the signal streams and the living physiology are
 present at **every** tier. The tiers change how much is spent drawing the model; they never change

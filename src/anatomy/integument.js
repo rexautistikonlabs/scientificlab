@@ -30,6 +30,8 @@ const SKIN = {
   // skin is the thinnest backlit tissue on the body — the strongest transmitter
   sss: 0.6,
   forceAmount: 0.85,
+  // pore-scale hint, High/Ultra only (gated in the shader by the cheap-light flag)
+  micro: 0.8,
 };
 
 const SUBQ = {
