@@ -139,6 +139,21 @@ export const SCALES = [
   { id: 'cell', name: 'Cell', span: 0.000045, note: '≈ 45 µm' },
 ];
 
+/**
+ * The peel order for the LAYER STACK display mode: seven readable strata,
+ * superficial to deep. Groups, not single layers, because "muscle" is one
+ * stratum but "neurovascular" is four render layers travelling together.
+ */
+export const LAYER_STACK = [
+  { id: 'skin', name: 'Skin', layers: ['skin'] },
+  { id: 'fasciaSup', name: 'Superficial fascia', layers: ['fasciaSup'] },
+  { id: 'fasciaDeep', name: 'Deep fascia', layers: ['fasciaDeep', 'chains'] },
+  { id: 'muscle', name: 'Muscle', layers: ['muscle'] },
+  { id: 'viscera', name: 'Viscera', layers: ['organ', 'fasciaVisc'] },
+  { id: 'neurovascular', name: 'Neurovascular', layers: ['nerve', 'arterial', 'venous', 'lymph'] },
+  { id: 'receptor', name: 'Receptor field', layers: ['receptor'] },
+];
+
 export const TOOLS = [
   {
     id: 'tension',
@@ -287,6 +302,12 @@ class Store extends Emitter {
       reflex: true,
     };
 
+    /* Display mode: 'composite' shows everything together (the default and
+       the product's signature view); 'layers' is the peel mode — one stratum
+       of LAYER_STACK in focus, the rest faded to a ghost, signalling dimmed
+       with its carrier layer but never deleted. */
+    this.display = { mode: 'composite', focus: 'muscle' };
+
     /* Opt-in camera follow. OFF by default and deliberately so: 49dee51 removed
        every surprise follow behaviour, and this toggle is the one sanctioned
        way to get "fly to what I select" back. */
@@ -349,7 +370,29 @@ class Store extends Emitter {
     if (!l || !l.visible) return 0;
     if (!entitlements.canSeeLayer(id)) return 0;
     if (this.solo.size && !this.solo.has(id)) return 0;
+    /* LAYER STACK: the focused stratum reads at full weight, everything else
+       becomes a ghost — faded, not deleted, so context and the signal traffic
+       riding those layers stay legible as background. */
+    if (this.display.mode === 'layers') {
+      const group = LAYER_STACK.find((g) => g.id === this.display.focus);
+      if (group && !group.layers.includes(id)) return l.opacity * 0.08;
+    }
     return l.opacity;
+  }
+
+  setDisplayMode(mode) {
+    const m = mode === 'layers' ? 'layers' : 'composite';
+    if (this.display.mode === m) return;
+    this.display.mode = m;
+    this.emit('display');
+    this.emit('layers');
+  }
+
+  setDisplayFocus(groupId) {
+    if (!LAYER_STACK.some((g) => g.id === groupId)) return;
+    this.display.focus = groupId;
+    if (this.display.mode === 'layers') this.emit('layers');
+    this.emit('display');
   }
 
   setLayerVisible(id, v) {

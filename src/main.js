@@ -1269,7 +1269,7 @@ async function main() {
       /* ignore */
     }
     startEl.hidden = true;
-    for (const id of ['#topbar', '#stepper', '#vp-title', '#vp-zoom', '#scale-rail', '#panel-left', '#panel-right', '#atlas-bottom', '#scalebar'])
+    for (const id of ['#topbar', '#stepper', '#vp-title', '#vp-zoom', '#display-mode', '#scale-rail', '#panel-left', '#panel-right', '#atlas-bottom', '#scalebar'])
       el(id).hidden = false;
     hud.perfVisible(store.render.perfHud);
 

@@ -3753,3 +3753,56 @@ body.panes-collapsed .panel {
 
 /* pane A is a real pane now, not a click-through HUD strip */
 .telemetry.pane { pointer-events: auto; }
+
+/* ============================================================
+   Display mode toggle + layer strip
+   ============================================================ */
+.display-mode {
+  position: absolute;
+  right: 12px;
+  top: calc(var(--top-h) + var(--step-h) + 10px);
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+/* the right panel occupies that corner; sit the toggle just left of it */
+.display-mode { right: 312px; }
+.dm-modes {
+  display: flex;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.dm-mode {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  padding: 5px 12px;
+  color: var(--ink-3);
+}
+.dm-mode + .dm-mode { border-left: 1px solid var(--line); }
+.dm-mode:hover { color: var(--ink); }
+.dm-mode.on { background: var(--accent); color: #f6f3ea; }
+.dm-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px;
+}
+.dm-layer {
+  font-size: 10px;
+  text-align: right;
+  padding: 3px 9px;
+  border-radius: 4px;
+  color: var(--ink-2);
+}
+.dm-layer:hover { background: rgba(94, 84, 60, 0.08); color: var(--ink); }
+.dm-layer.on { background: var(--accent); color: #f6f3ea; }
+
+/* keep the display toggle clear of the centered viewport title */
+.display-mode { top: calc(var(--top-h) + var(--step-h) + 44px); }

@@ -17,7 +17,7 @@
    ============================================================ */
 
 import { el, make, clamp } from '../core/util.js';
-import { SCALES, TOOLS } from '../core/store.js';
+import { SCALES, TOOLS, LAYER_STACK } from '../core/store.js';
 import { RECEPTORS, RECEPTOR_ORDER } from '../anatomy/info.js';
 import { TEACHING_SYSTEMS } from '../platform/overlays.js';
 import { entitlements } from '../platform/entitlements.js';
@@ -64,11 +64,61 @@ export class AtlasShell {
 
     this._buildIdentityMeters();
     this._buildStepper();
+    this._buildDisplayMode();
     this._wireStatStrip();
     this._initCollapse();
 
     this.subtitle = el('#vp-subtitle');
     this.zoomChip = el('#vp-zoom');
+  }
+
+  /* ============================================================
+     Display mode: COMPOSITE | LAYER STACK
+
+     Composite is the signature view — tension, afferent, efferent
+     and overlays together. Layer stack is the peel: one stratum in
+     focus, everything else a ghost. The wheel still traverses the
+     scale ladder in both; the strip below chooses the stratum.
+     ============================================================ */
+
+  _buildDisplayMode() {
+    const host = el('#display-mode');
+    if (!host) return;
+    host.innerHTML = '';
+    const modeRow = make('div', 'dm-modes');
+    this._dmButtons = new Map();
+    for (const [id, label, title] of [
+      ['composite', 'COMPOSITE', 'Everything together: tension, afferent in, efferent out, overlays. The default view.'],
+      ['layers', 'LAYER STACK', 'Peel mode: one anatomical stratum in focus, the rest faded to a ghost. Signalling dims with its layer but is never deleted.'],
+    ]) {
+      const b = make('button', 'dm-mode', label);
+      b.title = title;
+      b.addEventListener('click', () => this.store.setDisplayMode(id));
+      modeRow.appendChild(b);
+      this._dmButtons.set(id, b);
+    }
+    host.appendChild(modeRow);
+
+    this.layerStrip = make('div', 'dm-strip');
+    this._dmChips = new Map();
+    for (const g of LAYER_STACK) {
+      const c = make('button', 'dm-layer', g.name);
+      c.title = `Focus the ${g.name.toLowerCase()} stratum — everything else fades to context`;
+      c.addEventListener('click', () => this.store.setDisplayFocus(g.id));
+      this.layerStrip.appendChild(c);
+      this._dmChips.set(g.id, c);
+    }
+    host.appendChild(this.layerStrip);
+
+    this.store.on('display', () => this._syncDisplayMode());
+    this._syncDisplayMode();
+  }
+
+  _syncDisplayMode() {
+    const d = this.store.display;
+    for (const [id, b] of this._dmButtons) b.classList.toggle('on', d.mode === id);
+    this.layerStrip.hidden = d.mode !== 'layers';
+    for (const [id, c] of this._dmChips) c.classList.toggle('on', d.focus === id);
   }
 
   /* ============================================================
