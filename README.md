@@ -5,6 +5,14 @@ the body as a single continuous tension network (a teaching idealisation, not an
 claim), from the whole body down through individual mechanoreceptors to the interior of a
 single cell.
 
+Four things run live on one solve: the **tension network** (drawn, when enabled, as an instanced
+cable underlay whose colour and width read the solved load), **afferent flow** (cyan packets
+travelling inward from receptor fields), **efferent drive** (gold somatic, gold-violet fusimotor
+and rose autonomic packets travelling outward — a visualisation of modelled drive, not recorded
+neural data), and **ID-anchored teaching overlays** (chiropractic, acupuncture and massage
+landmark atlases). All of it is read through the **Atlas HUD**, a paper instrument chrome whose
+every figure is labelled a model output.
+
 A standalone freemium product on an extensible platform: a compact core engine, a fully selectable
 living body, and every property, dataset and user artefact attached by permanent anatomical ID.
 Self-contained — no backend, no assets to download, no external services. Every structure is
@@ -67,6 +75,19 @@ Vibration sense is effectively abolished while slow tonic channels are largely p
 of commanded, and the rest of the system follows: intra-abdominal pressure 0.34 → 0.72, venous
 return 0.93 → 0.42, lymph transport 0.72 → 0.28, overall signal integrity 0.99 → 0.78.
 
+**4. The outward half, the teaching maps, and the instrument.** Three schematic efferent
+channels close the loop — somatic (alpha-like, through the existing tone path), fusimotor (the
+gamma controls the spindle models read, so raising gamma genuinely changes the returning afferent
+traffic), and a two-tone autonomic balance applied as small multipliers inside the physiology.
+Sixty-nine teaching landmarks (18 chiropractic, 24 acupuncture, 27 massage / myofascial) bind to
+the permanent ID registry and ride the live deformation — teaching points with source, confidence
+and notes, **not treatment protocols** — and the acupuncture set adds dashed lines captioned
+*"schematic teaching channel — not a tissue in this model."* The Atlas HUD reads it all out:
+identity-bar meters (SCALE · SELECTED · NETWORK LOAD · SIGNAL INTEGRITY · AFFERENT RATE ·
+EFFERENT DRIVE · OVERLAY), the six-step workflow stepper (EXPLORE · LAYER · INTERVENE · SIGNAL ·
+OVERLAY · INSPECT), the stat strip and three analysis panes. It is an instrument for reading a
+model, not a clinical instrument.
+
 ## Relationship to the research literature
 
 CONTINUUM is a RexMetrix Technologies, LLC simulation for exploring multi-scale anatomy and
@@ -122,8 +143,9 @@ materials or the solver's inner loop.
   network topology ──► tensegrity solver ──► field texture (256×1 float)
                               ▲                     │
          physiology ──────────┘                     ├──► every tissue shader
-     (writes rest state)                            ├──► afferent model
-                                                    └──► signal streams, telemetry
+     (writes rest state)                            ├──► network cable underlay
+                                                    ├──► afferent model ──► efferent drive
+                                                    └──► afferent / efferent streams, telemetry
 ```
 
 Every selectable structure has a permanent identifier derived from its semantic build key —
@@ -152,9 +174,12 @@ Because identity is the contract, everything downstream composes without engine 
 | `sim/afferent.js` | Standard-linear-solid tissue filter, per-class transduction, rate coding, fidelity/latency/bandwidth |
 | `sim/spindle.js` | One muscle spindle bound to a network element: kinematics, drive, exact integrate-and-fire, conduction |
 | `sim/spindle_extended.js` | Optional Extended drive: history, tension/yank, fusimotor, scenario protocols. See `MICRO_MODE.md` |
+| `sim/efferent.js` | The outward teaching channels: somatic (tone path), fusimotor (gamma → spindle closed loop), schematic autonomic two-tone with its physiology multipliers |
 | `anatomy/` | Procedural geometry for eight systems + receptor fields + receptor micro-anatomy |
 | `anatomy/cellscape.js` | The Cell tier: schematic fibroblast-like interior — membrane, organelles, cytoskeleton, instanced molecular crowd |
-| `gfx/` | Shared tissue shader, signal streams, network overlay, post pipeline |
+| `gfx/` | Shared tissue shader, afferent signal streams, post pipeline |
+| `gfx/efferentStreams.js` | Outward packet streams along the named trunks: gold somatic, gold-violet fusimotor, rose autonomic |
+| `gfx/anatomyMaterials.js` | Instanced network cable ribbons (endpoints, width and amber→copper load read from the field texture — zero per-frame CPU), teaching-overlay marker materials and geometry, channel dash material |
 | `core/` | State store, scale-aware orbit controls, multi-scale manager |
 | `core/quality.js` | Tier table, hardware detection, adaptive quality controller |
 | `platform/layers.js` | The A/B/C layer taxonomy and every output's definition — the source of truth for `METRICS.md` |
@@ -166,8 +191,13 @@ Because identity is the contract, everything downstream composes without engine 
 | `platform/auth.js` | Mock account and subscription; resolves a session into a claim |
 | `platform/datasets.js` | Research overlay format, validation, bundled dataset loading |
 | `platform/projects.js` | ID-keyed scene capture and restore, JSON export/import |
+| `platform/overlays.js` | Teaching overlays: ID-bound point resolution (unresolvable IDs reported, never invented), instanced markers, dashed schematic channels, massage demonstration loads through the existing intervention path |
+| `data/overlays/` | The three teaching-point sets — 18 chiropractic, 24 acupuncture, 27 massage — each point with source, confidence and notes |
 | `tools/` | Measurement probes and annotations, both ID-anchored |
 | `ui/` | Systems panel, inspector, workspace panels, telemetry, frame diagnostics, entitlement states |
+| `ui/atlasShell.js` | The Atlas HUD: identity-bar meter row, six-step workflow stepper, viewport title and zoom chip, stat strip, pane collapse (`panes-collapsed`) |
+| `ui/activityPane.js` / `ui/couplingMap.js` / `ui/observePane.js` | The three analysis panes: per-system sparklines, the region coupling map, the observation card with local session notes |
+| `ui/overlayPanel.js` | Teaching-overlay panel: system toggles, density, point list, provenance card, demonstration reset |
 | `ui/tour.js` | Ten-step guided tour: spotlit coach marks over real UI, run once after the disclaimer. See `TOUR.md` |
 
 ### API surface
@@ -182,7 +212,12 @@ CONTINUUM.api.get('FASCIA_CERVICAL_DEEP')     // base + live + bound data, with 
 CONTINUUM.api.live('RECEPTOR_PACINIAN_PLANTAR_L_01')
 CONTINUUM.api.registerDataset({ id, name, unit, values: { BONE_FEMUR_L: 12.4, … } })
 CONTINUUM.api.registerPathology({ id, name, effects: { FASCIA_PLANTAR_L: { kind, magnitude } } })
-CONTINUUM.api.setOverlay('innervation')
+
+// teaching overlays: one of null | 'none' | 'innervation' | 'chiropractic'
+// | 'acupuncture' | 'massage' | 'all-teaching-points'; a dataset object or id
+// still routes to the research-overlay painter
+CONTINUUM.api.setOverlay('acupuncture')
+CONTINUUM.api.teachingOverlays()              // per-system resolved / unresolved counts + caption
 CONTINUUM.api.setTier('premium')
 ```
 

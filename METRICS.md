@@ -128,6 +128,12 @@ Sum of modelled firing across all seven populations. **A population total, not
 one ending** — it is not comparable with the Microscope panel's Ia rate, which
 is a single modelled afferent.
 
+### Efferent drive
+Weighted composite of the outward teaching channels — somatic drive, fusimotor
+drive, and the displacement of the schematic autonomic balance from neutral.
+The weights are presentation choices; definition in `src/platform/layers.js`
+(`efferentDrive`). A visualisation of modelled drive, not recorded neural data.
+
 ### Breath excursion, Fluid transport
 Achieved diaphragm travel ÷ commanded travel; and a composite of modelled venous
 return and lymph flow.
