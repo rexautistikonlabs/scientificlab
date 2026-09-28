@@ -541,6 +541,7 @@ location.reload();</pre>
             <ul class="ov-list">
               <li><b>Drag</b> to orbit — yaw wraps freely, pitch stops short of the poles so the view never flips.</li>
               <li><b>Middle-drag</b> or <b>Shift-drag</b> (or two fingers) to pan · <b>right-drag</b> or <b>Alt-drag</b> for a pitch-only tilt · <b>wheel</b> or pinch to move in and out.</li>
+              <li><b>Fly:</b> hold <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to move through world space along the camera's look, <kbd>Q</kbd>/<kbd>E</kbd> to rise and lower, <kbd>Shift</kbd> to sprint. Speed follows the current scale — metres at Body, tens of microns at Cell — the look-at travels with you (so orbit stays around where you are), soft bounds keep you near the figure, and flying never changes the scale tier or starts tracking a selection. <kbd>Home</kbd> recentres on the figure without changing scale.</li>
               <li>The wheel does not merely zoom — it traverses six orders of magnitude, from the standing body to the interior of a single cell.</li>
               <li>Scale rail, top centre: <b>Body → Region → Organ → Tissue → Receptor → Cell</b>. Keys <kbd>1</kbd>–<kbd>6</kbd> jump between them.</li>
               <li><kbd>M</kbd> dives into the selected structure — one continuous descent from wherever you are
@@ -761,7 +762,9 @@ CONTINUUM.validation.needsSourcing() // the working to-do list</pre>
                   <li><kbd>1</kbd>–<kbd>6</kbd> jump scale tiers</li>
                   <li><kbd>Space</kbd> pause / resume the physiology</li>
                   <li><kbd>Shift</kbd>+<kbd>M</kbd> pin Microscope mode</li>
-                  <li><kbd>A</kbd> afferent streams · <kbd>E</kbd> efferent streams · <kbd>B</kbd> motor burst</li>
+                  <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> fly · <kbd>Q</kbd>/<kbd>E</kbd> rise / lower · <kbd>Shift</kbd> sprint · <kbd>Home</kbd> recentre</li>
+                  <li><kbd>C</kbd> afferent streams · <kbd>G</kbd> efferent streams · <kbd>B</kbd> motor burst</li>
+                  <li><kbd>L</kbd> distance measure (moved from D to free the fly keys)</li>
                   <li><kbd>O</kbd> cycle teaching overlays</li>
                 </ul>
               </div>

@@ -53,6 +53,33 @@ export class Controls {
     this.nearFrac = 0.004;
 
     this._fly = null;
+
+    /* ---- WASD/QE world-space fly ----
+       Hold-to-move translation of the camera AND its look-at together, so an
+       orbit after a fly orbits the point you flew to. Speed derives from the
+       current view span (scale-aware: metres at Body, tens of microns at
+       Cell), sprint is ×3, and a generous AABB around the figure bounds the
+       target with per-axis clamping — hitting a wall slides along it. */
+    this._flyVec = { f: 0, b: 0, l: 0, r: 0, u: 0, d: 0 };
+    this._sprint = false;
+    /** optional persisted speed multiplier; pose itself is never persisted */
+    this.flySpeedMul = (() => {
+      try {
+        const v = parseFloat(localStorage.getItem('continuum.camera.flySpeed'));
+        return Number.isFinite(v) && v > 0.05 && v < 20 ? v : 1;
+      } catch {
+        return 1;
+      }
+    })();
+    /** soft bounds: generous box around either teaching figure */
+    this.flyBounds = {
+      min: new THREE.Vector3(-1.3, -0.35, -1.3),
+      max: new THREE.Vector3(1.3, 2.6, 1.3),
+    };
+    this._flyTmp = new THREE.Vector3();
+    this._flyRight = new THREE.Vector3();
+    this._flyFwd = new THREE.Vector3();
+
     this._pointers = new Map();
     this._mode = null; // 'orbit' | 'pan'
     this._last = new THREE.Vector2();
@@ -162,6 +189,63 @@ export class Controls {
   _pinchMid(out) {
     const [a, b] = [...this._pointers.values()];
     if (a && b) out.set((a.x + b.x) / 2, (a.y + b.y) / 2);
+  }
+
+  /* ---------------- keyboard fly ---------------- */
+
+  /** dir ∈ f|b|l|r|u|d — held (1) or released (0). */
+  setFlyKey(dir, on) {
+    if (!(dir in this._flyVec)) return;
+    const v = on ? 1 : 0;
+    if (this._flyVec[dir] === v) return;
+    this._flyVec[dir] = v;
+    // starting to fly cancels a cinematic move, like any other manual input
+    if (v && this._fly) this.cancelFly();
+  }
+
+  setSprint(on) {
+    this._sprint = !!on;
+  }
+
+  clearFlyKeys() {
+    for (const k in this._flyVec) this._flyVec[k] = 0;
+    this._sprint = false;
+  }
+
+  get flying3d() {
+    const v = this._flyVec;
+    return !!(v.f || v.b || v.l || v.r || v.u || v.d);
+  }
+
+  /** Integrate held fly keys: translate target (camera follows via dist). */
+  _stepFly(dt) {
+    const v = this._flyVec;
+    const fwd = v.f - v.b;
+    const strafe = v.r - v.l;
+    const rise = v.u - v.d;
+    if (!fwd && !strafe && !rise) return;
+
+    /* Scale-aware speed: cross about 90 % of the visible frame per second,
+       three times that in sprint. At the Body tier that is roughly 1.9 m/s;
+       inside a cell it is ~40 µm/s — one W-hold never leaves the specimen. */
+    const speed = this.span * 0.9 * (this._sprint ? 3 : 1) * this.flySpeedMul * dt;
+
+    // camera basis: forward along the actual look, right from the world matrix
+    this.camera.matrixWorld.extractBasis(this._flyRight, this._flyTmp, this._flyFwd);
+    this._flyFwd.multiplyScalar(-1); // -Z is forward
+
+    const d = this._flyTmp.set(0, 0, 0);
+    d.addScaledVector(this._flyFwd, fwd);
+    d.addScaledVector(this._flyRight, strafe);
+    d.y += rise; // rise/lower is world-up, so the horizon stays level
+    if (d.lengthSq() < 1e-12) return;
+    d.normalize().multiplyScalar(speed);
+
+    // per-axis clamp = slide along the soft bound, never a bounce
+    const b = this.flyBounds;
+    this.target.x = clamp(this.target.x + d.x, b.min.x, b.max.x);
+    this.target.y = clamp(this.target.y + d.y, b.min.y, b.max.y);
+    this.target.z = clamp(this.target.z + d.z, b.min.z, b.max.z);
   }
 
   /** did the last gesture move far enough to count as a drag (vs. a click)? */
@@ -322,6 +406,7 @@ export class Controls {
         r?.();
       }
     } else {
+      this._stepFly(dt);
       if (this.autoRotate && !this._mode) this.theta += this.autoRotate * dt;
       const k = this.damping;
       this._theta = approach(this._theta, this.theta, k, dt);

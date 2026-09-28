@@ -1045,9 +1045,22 @@ async function main() {
   });
   syncPlay();
 
+  /* ---- WASD/QE world-space fly ----
+     Hold-to-move. W/S along the look, A/D strafe, Q/E rise and lower on world
+     up, Shift sprints. Handled before the switch so the old A/E/D toggle keys
+     could move to C/G/L (documented in Help); F and R keep their one-shot
+     roles. Fly never touches the scale ladder and never enables tracking. */
+  const FLY_KEYS = { w: 'f', s: 'b', a: 'l', d: 'r', q: 'u', e: 'd' };
+
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement) return;
     const k = e.key;
+    const low = k.toLowerCase();
+    if (FLY_KEYS[low] && !e.metaKey && !e.ctrlKey) {
+      controls.setSprint(e.shiftKey);
+      controls.setFlyKey(FLY_KEYS[low], true);
+      return;
+    }
     if (k >= '1' && k <= '6') {
       scales.goToTier(+k - 1);
       hud.toast(`<b>${SCALES[+k - 1].name}</b> scale · ${SCALES[+k - 1].note}`, 1800);
@@ -1111,18 +1124,22 @@ async function main() {
       case 'p':
         premium.toggle();
         break;
-      case 'd':
+      case 'l':
         workspace.setMeasureMode(workspace.measureMode === 'distance' ? null : 'distance');
+        break;
+      case 'home':
+        controls.flyTo({ target: new THREE.Vector3(0, 0.95, 0), duration: 1.1 });
+        hud.toast('Recentred on the figure — scale unchanged', 2000);
         break;
       case 'n':
         actions.armAnnotation();
         break;
-      case 'a':
+      case 'c':
         store.setRender('signals', !store.render.signals);
         panels.syncRenderControls?.();
         hud.toast(store.renderEnabled('signals') ? '<b>Afferent streams</b> on — cyan packets travel inward' : 'Afferent streams off', 2400);
         break;
-      case 'e':
+      case 'g':
         store.setRender('efferent', !store.render.efferent);
         panels.syncRenderControls?.();
         hud.toast(
@@ -1164,6 +1181,14 @@ async function main() {
         break;
     }
   });
+
+  window.addEventListener('keyup', (e) => {
+    const low = e.key.toLowerCase();
+    // no target guard on release: a keyup landing in an input must still stop the fly
+    if (FLY_KEYS[low]) controls.setFlyKey(FLY_KEYS[low], false);
+    if (e.key === 'Shift') controls.setSprint(false);
+  });
+  window.addEventListener('blur', () => controls.clearFlyKeys());
 
   /* ============================================================
      Resize

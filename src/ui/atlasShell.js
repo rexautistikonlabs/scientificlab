@@ -288,6 +288,17 @@ export class AtlasShell {
     }
     this._chip('Frame selection', 'Frame the current selection (F)', () => this.actions.frameSelection());
     this._chip(
+      'Fly: WASD · QE',
+      'Hold W A S D to fly along the camera look and strafe, Q / E to rise and lower on world up, Shift to sprint. ' +
+        'Speed follows the current scale; the look-at travels with you; Home recentres on the figure.',
+      () =>
+        this.hud.toast(
+          '<b>Fly</b> — hold <b>W A S D</b> to move, <b>Q</b>/<b>E</b> rise and lower, <b>Shift</b> sprint. ' +
+            'Speed follows the scale; wheel still changes scale; <b>Home</b> recentres.',
+          4200
+        )
+    );
+    this._chip(
       'Track selection',
       'When on, selecting a structure flies the camera to it. Off by default — the specimen sits still unless you ask.',
       (c) => {
@@ -341,11 +352,11 @@ export class AtlasShell {
   }
 
   _rowSignal() {
-    this._chip('Afferent', 'Inward packet streams — cyan, receptor to brainstem (A)', (c) => {
+    this._chip('Afferent', 'Inward packet streams — cyan, receptor to brainstem (C)', (c) => {
       this.store.setRender('signals', !this.store.render.signals);
       c.classList.toggle('on', this.store.renderEnabled('signals'));
     }, { on: this.store.renderEnabled('signals'), cap: 'viz.signals' });
-    this._chip('Efferent', 'Outward packet streams — gold somatic, violet fusimotor, rose autonomic (E)', (c) => {
+    this._chip('Efferent', 'Outward packet streams — gold somatic, violet fusimotor, rose autonomic (G)', (c) => {
       this.store.setRender('efferent', !this.store.render.efferent);
       c.classList.toggle('on', this.store.renderEnabled('efferent'));
     }, { on: this.store.renderEnabled('efferent'), cap: 'viz.signals' });
@@ -410,7 +421,7 @@ export class AtlasShell {
     this._chip('Pin probe', 'Place a tension probe on the next click (measurement tool)', () => {
       this.workspace.setMeasureMode('tension');
     }, { cap: 'tool.measure' });
-    this._chip('Distance', 'Measure a distance with two clicks (D)', () => {
+    this._chip('Distance', 'Measure a distance with two clicks (L)', () => {
       this.workspace.setMeasureMode('distance');
     }, { cap: 'tool.measure' });
     this._chip('Note', 'Pin an annotation to the next click (N)', () => this.actions.armAnnotation(), { cap: 'tool.annotate' });

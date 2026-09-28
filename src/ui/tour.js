@@ -42,7 +42,7 @@ export const TOUR_KEY = 'continuum_tour_v1';
  * record whose version does not match is treated as no record, so everyone gets
  * the new tour once and once only.
  */
-export const TOUR_VERSION = '2';
+export const TOUR_VERSION = '3';
 
 export class Tour {
   /**
@@ -127,8 +127,9 @@ export class Tour {
         side: 'centre-low',
         title: 'Move around the body',
         body:
-          'Drag to orbit, middle- or Shift-drag (two fingers) to pan, wheel or pinch to move in and out. The heart and ' +
-          'the breath are already running — nothing here is a still image.',
+          'Drag to orbit, middle- or Shift-drag (two fingers) to pan, wheel or pinch to move in and out. ' +
+          'W A S D fly; Q E up/down; Shift sprint; wheel changes scale. The heart and the breath are already ' +
+          'running — nothing here is a still image.',
       },
       {
         id: 'scale',
