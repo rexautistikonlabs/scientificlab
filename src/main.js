@@ -25,9 +25,12 @@ import { clamp, el, approach, smootherstep } from './core/util.js';
 import { PostFX } from './gfx/postfx.js';
 import { GLOBAL, backdrop, groundPad } from './gfx/materials.js';
 import { SignalStreams, NetworkOverlay, MicroPulses } from './gfx/signals.js';
+import { EfferentStreams } from './gfx/efferentStreams.js';
 import { buildNetwork, Tensegrity } from './sim/tensegrity.js';
 import { Physiology } from './sim/physiology.js';
 import { Afferent } from './sim/afferent.js';
+import { Efferent } from './sim/efferent.js';
+import { TeachingOverlays, TEACHING_SYSTEMS } from './platform/overlays.js';
 import { buildBody } from './anatomy/index.js';
 import { setReceptorDensity } from './anatomy/receptors.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
@@ -50,6 +53,12 @@ import { Measurements } from './tools/measure.js';
 import { Annotations } from './tools/annotate.js';
 import { Hud } from './ui/hud.js';
 import { Panels } from './ui/panels.js';
+import { OverlayPanel } from './ui/overlayPanel.js';
+import { AtlasShell } from './ui/atlasShell.js';
+import { ActivityPane } from './ui/activityPane.js';
+import { CouplingMap } from './ui/couplingMap.js';
+import { ObservePane } from './ui/observePane.js';
+import { ViewportCallouts } from './ui/viewportCallouts.js';
 import { PremiumUI } from './ui/premium.js';
 import { Workspace } from './ui/workspace.js';
 import { Tour, TOUR_VERSION } from './ui/tour.js';
@@ -165,6 +174,18 @@ async function main() {
   const signals = new SignalStreams(afferent, quality);
   signals.setPixelRatio(dpr);
   scene.add(signals.points);
+
+  /* The outward half of the loop. The Efferent module computes the channel
+     drives — somatic via the existing tone path, gamma read from the same
+     controls the spindle models consume, and a schematic autonomic two-tone
+     that physiology applies as small multipliers. The streams draw them
+     travelling distally along the same named trunks the afferent traffic
+     ascends. No second solver anywhere in this. */
+  const efferent = new Efferent(store, physio, solver);
+  physio.efferent = efferent;
+  const effStreams = new EfferentStreams(efferent, quality);
+  effStreams.setPixelRatio(dpr);
+  scene.add(effStreams.points);
 
   const overlay = new NetworkOverlay(solver);
   scene.add(overlay.group);
@@ -323,6 +344,8 @@ async function main() {
     setReceptorDensity(receptors.populations, tier.receptors);
     signals.setDensity(tier.particles);
     signals.setSizeFactor(tier.signalSize);
+    effStreams.setDensity(tier.particles);
+    effStreams.setSizeFactor(tier.signalSize);
     /* The micro pulses share the particle budget, because they are the same kind
        of cost. Density only changes how many in-flight spikes are *drawn* — the
        spike generator and the conduction delay are untouched, so a low tier shows
@@ -360,6 +383,12 @@ async function main() {
 
   /* ---------------- ui ---------------- */
   const hud = new Hud(store, scales, afferent, physio, solver);
+  hud.efferent = efferent;
+
+  /* Teaching overlays: chiropractic contact regions, acupuncture atlas points,
+     massage / myofascial landmarks — platform datasets bound by anatomical ID,
+     never baked mesh. Unresolvable IDs are reported, not invented. */
+  const teaching = new TeachingOverlays({ registry, solver, store, scene });
 
   qualityCtl = new QualityController({
     detected,
@@ -423,6 +452,13 @@ async function main() {
     premium.open(`${label} is part of the advanced instrument.`);
   };
   const panels = new Panels({ store, registry, afferent, solver, actions, props, premium });
+  const overlayPanel = new OverlayPanel({
+    store,
+    teaching,
+    solver,
+    hud,
+    onFly: (s) => scales.focus(s),
+  });
 
   const projects = new Projects({
     store,
@@ -438,6 +474,27 @@ async function main() {
   });
   const workspace = new Workspace({ store, props, projects, measures, annotations, hud, premium, actions });
   const tour = new Tour({ premium, scales, store });
+
+  /* ---------------- atlas instrument chrome ---------------- */
+  const atlas = new AtlasShell({
+    store,
+    scales,
+    controls,
+    afferent,
+    efferent,
+    solver,
+    physio,
+    teaching,
+    actions,
+    hud,
+    panels,
+    workspace,
+  });
+  atlas.setSelectionNamer((key) => registry.get(key)?.name || key);
+  const activityPane = new ActivityPane({ physio, solver, afferent, efferent });
+  const couplingMap = new CouplingMap({ solver, registry, store, hud });
+  const observePane = new ObservePane({ store, registry, solver, afferent, teaching });
+  const callouts = new ViewportCallouts({ store, registry, solver, camera, canvas, teaching });
 
   hud.onScaleClick((i) => scales.goToTier(i));
 
@@ -627,6 +684,32 @@ async function main() {
     if (controls.dragged) return;
     const hit = pickAt(e.clientX, e.clientY);
     const struct = hit?.object?.userData?.structure || null;
+
+    /* --- a teaching-overlay marker takes precedence when it is the nearer hit --- */
+    {
+      const rect = canvas.getBoundingClientRect();
+      ptr.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      ptr.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      ray.setFromCamera(ptr, camera);
+      const mHits = ray.intersectObjects(teaching.pickTargets(), false);
+      if (mHits.length && (!hit || mHits[0].distance <= hit.distance + 0.004)) {
+        const pt = teaching.pointFromHit(mHits[0]);
+        if (pt) {
+          teaching.selectPoint(pt.system, pt.index);
+          // selecting a point selects its bound anatomy, so the inspector and
+          // the local tension state light up together
+          store.select(pt.structure.key, false);
+          overlayPanel.showPoint(pt);
+          hud.toast(
+            `<b>${pt.point.name}</b> · ${TEACHING_SYSTEMS[pt.system].name}<br>` +
+              `bound to ${pt.structure.name} · ${pt.point.confidence}<br>` +
+              `<em>Teaching atlas. Not an indication. Not a protocol.</em>`,
+            4200
+          );
+          return;
+        }
+      }
+    }
 
     /* --- annotation placement takes the click --- */
     if (armedAnnotation) {
@@ -1026,6 +1109,35 @@ async function main() {
       case 'n':
         actions.armAnnotation();
         break;
+      case 'a':
+        store.setRender('signals', !store.render.signals);
+        panels.syncRenderControls?.();
+        hud.toast(store.renderEnabled('signals') ? '<b>Afferent streams</b> on — cyan packets travel inward' : 'Afferent streams off', 2400);
+        break;
+      case 'e':
+        store.setRender('efferent', !store.render.efferent);
+        panels.syncRenderControls?.();
+        hud.toast(
+          store.renderEnabled('efferent')
+            ? '<b>Efferent streams</b> on — gold somatic, violet fusimotor, rose autonomic, travelling outward'
+            : 'Efferent streams off',
+          3000
+        );
+        break;
+      case 'b':
+        efferent.pulse(1);
+        hud.toast('<b>Motor burst</b> — a transient rise in alpha-like drive through the tone path', 2400);
+        break;
+      case 'o': {
+        // cycle: none → chiropractic → acupuncture → massage → all → none
+        const order = [[], ['chiropractic'], ['acupuncture'], ['massage'], ['chiropractic', 'acupuncture', 'massage']];
+        const cur = [...store.teachingOverlays].sort().join(',');
+        const idx = order.findIndex((o) => o.slice().sort().join(',') === cur);
+        const next = order[(idx + 1) % order.length];
+        store.setTeachingOverlays(next);
+        hud.toast(next.length ? `Teaching overlay: <b>${next.join(' + ')}</b> — teaching atlas, not an indication, not a protocol` : 'Teaching overlays off', 3000);
+        break;
+      }
       case 's':
         if (e.metaKey || e.ctrlKey) {
           e.preventDefault();
@@ -1053,6 +1165,7 @@ async function main() {
     renderer.setSize(w, h, true);
     postfx.setSize(w, h, dpr);
     signals.setPixelRatio(dpr);
+    effStreams.setPixelRatio(dpr);
     microPulses.setPixelRatio(dpr);
     hud.setBufferSize(postfx.w, postfx.h);
   }
@@ -1142,7 +1255,8 @@ async function main() {
       /* ignore */
     }
     startEl.hidden = true;
-    for (const id of ['#topbar', '#panel-left', '#panel-right', '#telemetry', '#scalebar']) el(id).hidden = false;
+    for (const id of ['#topbar', '#stepper', '#vp-title', '#vp-zoom', '#scale-rail', '#panel-left', '#panel-right', '#atlas-bottom', '#scalebar'])
+      el(id).hidden = false;
     hud.perfVisible(store.render.perfHud);
 
     /* First run gets the guided tour; every later visit gets the one-line
@@ -1218,6 +1332,7 @@ async function main() {
     if (store.physio.running) physio.step(dt, speed);
     solver.step(dt * (store.physio.running ? 1 : 0.35) || 1e-4);
     afferent.step(dt * (store.physio.running ? speed : 0.15));
+    efferent.step(dt * (store.physio.running ? speed : 0.15));
 
     /* Micro-mechanics. Stepped with the *same* effective simulation time as
        everything else, so slowing the physiology slows the spike train with it
@@ -1283,6 +1398,10 @@ async function main() {
 
     /* ---- signal + overlay + world-space tools ---- */
     signals.update(store);
+    effStreams.setScale(scales.tier);
+    effStreams.update(store);
+    teaching.setCameraPos(camera.position);
+    teaching.update(scales.tier);
     // one dot per action potential in transit, placed by how long ago the spike
     // generator emitted it — not by a phase of its own
     microPulses.update(microSpindle, store.micro.active && micro.root.visible);
@@ -1335,10 +1454,19 @@ async function main() {
     postfx.render(scene, camera, GLOBAL.uTime.value);
 
     /* ---- ui, at a lower cadence ---- */
+    callouts.update();
     uiAcc += raw;
     if (uiAcc > 1 / 24) {
       hud.update(uiAcc);
       panels.tick();
+      atlas.update({
+        endings: receptors.populations.reduce((n, p) => n + (p.drawn ?? p.count), 0),
+        affDrawn: signals.points.visible ? signals.drawn : 0,
+        effDrawn: effStreams.points.visible ? effStreams.drawn : 0,
+      });
+      activityPane.update(uiAcc);
+      couplingMap.update(uiAcc);
+      observePane.update(uiAcc);
       hud.microVisible(store.micro.active && !!microSpindle?.resolved);
       if (microSpindle) hud.updateMicro(microSpindle);
       const cellState = cell.state();
@@ -1376,6 +1504,9 @@ async function main() {
     renderer,
     /* rendering */
     signals,
+    efferent,
+    effStreams,
+    teaching,
     overlay,
     postfx,
     quality: qualityCtl,
@@ -1411,7 +1542,19 @@ async function main() {
          validator the file picker uses. Accepts an object or JSON text. */
       validateDataset: (input) => (typeof input === 'string' ? parseDataset(input) : validateDataset(input)),
       registerPathology: (p) => props.registerPathology(p),
-      setOverlay: (d) => props.setOverlay(d),
+      /* Overlay dispatch: teaching-system names (and null) go to the teaching
+         atlas; dataset objects/ids keep going to the research-overlay painter. */
+      setOverlay: (d) => {
+        if (d === null) {
+          teaching.setOverlay(null);
+          return props.setOverlay(null);
+        }
+        if (typeof d === 'string' && (TEACHING_SYSTEMS[d] || d === 'all-teaching-points' || d === 'innervation' || d === 'none')) {
+          return teaching.setOverlay(d);
+        }
+        return props.setOverlay(d);
+      },
+      teachingOverlays: () => teaching.state(),
       applyPathology: (p) => props.applyPathology(p, store),
       clearPathology: (p) => props.clearPathology(p, store),
       setTier: (t) => entitlements.setTier(t),

@@ -183,6 +183,15 @@ export const OUTPUTS = Object.freeze({
   },
   excursion: { layer: 'C', name: 'Breath excursion', unit: '%', definition: 'Achieved diaphragm travel divided by commanded travel.' },
   fluid: { layer: 'C', name: 'Fluid transport', unit: '%', definition: 'Composite of modelled venous return and lymph flow.' },
+  efferentDrive: {
+    layer: 'C',
+    name: 'Efferent drive',
+    unit: '%',
+    definition:
+      'Weighted composite of the outward teaching channels: somatic drive (tone plus voluntary burst), fusimotor drive ' +
+      '(the gamma controls the spindle models read), and the displacement of the schematic autonomic balance from neutral. ' +
+      'The weights are presentation choices; nothing anchors them externally.',
+  },
 });
 
 /** Layer of a named output, or null when the name is unknown. */

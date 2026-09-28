@@ -708,7 +708,10 @@ const SIGNAL_VERT = /* glsl */ `
 
     vAmp = amp * (0.35 + 0.65 * fid);
     vFid = fid;
-    vCol = mix(vec3(1.0, 0.55, 0.28), vec3(0.45, 0.95, 1.0), fid);
+    // the locked afferent role: cyan brightening toward white as fidelity and
+    // amplitude rise. A degraded signal is a dull, smeared cyan — never warm,
+    // because warm is the tension ramp's job.
+    vCol = mix(vec3(0.16, 0.46, 0.56), mix(vec3(0.45, 0.95, 1.0), vec3(0.95, 1.0, 1.0), clamp(amp, 0.0, 1.0)), fid);
 
     vec4 mv = viewMatrix * modelMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
@@ -837,10 +840,10 @@ const NET_FRAG = /* glsl */ `
   varying float vT;
   varying float vKind;
   void main() {
-    // cables warm with tension; struts stay cold — the visual grammar of the
-    // tension/compression distinction
-    vec3 cable = mix(vec3(0.30, 0.62, 0.72), vec3(1.0, 0.42, 0.2), clamp(vT, 0.0, 1.0));
-    vec3 strut = vec3(0.80, 0.86, 0.95);
+    // the locked tension ramp: cables run amber → copper with load; struts
+    // stay stone ivory-grey — the visual grammar of tension vs compression
+    vec3 cable = mix(vec3(0.52, 0.40, 0.22), vec3(1.0, 0.45, 0.16), clamp(vT, 0.0, 1.0));
+    vec3 strut = vec3(0.86, 0.84, 0.78);
     vec3 c = mix(cable, strut, vKind);
     float a = uOpacity * mix(0.35 + 0.85 * clamp(vT, 0.0, 1.0), 0.8, vKind);
     gl_FragColor = vec4(c * (0.7 + 1.1 * clamp(vT, 0.0, 1.0)), a);

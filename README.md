@@ -411,6 +411,8 @@ untouched, and none of these terms exists on the Low tier's cost path (see the t
 | Cellular molecular crowd | ~10 % | ~64 % | full | full |
 | Receptor endings drawn | 500 | 882 | 1 469 | 1 469 |
 | Signal beads drawn | 540 | 960 | 1 500 | 1 920 |
+| Efferent beads drawn | 256 | 448 | 704 | 896 |
+| Teaching-overlay markers | 69 instanced symbols at every tier (CPU-anchored, hidden past the tissue tier) | | | |
 | Suits | integrated graphics, older laptops, software rendering | recent integrated graphics, mid-range laptops | discrete GPUs, Apple silicon | modern discrete GPUs, high-DPI displays |
 
 Tension colouring, rim lighting, force propagation, the signal streams and the living physiology are
@@ -535,6 +537,117 @@ of the crowd and no matrix context.
 Software-rasteriser artefacts specific to this tier: single-digit frame rates (vertex cost of the
 instanced crowd, which real GPUs absorb trivially), and Brownian jitter that appears stuttery only
 because the frame rate is.
+
+## The atlas instrument (HUD)
+
+The chrome is a paper instrument around a dark living scene — cream field,
+hairline rules, small-caps section titles, tabular figures. It is built from:
+
+- **Identity bar** — wordmark, then the always-visible meter row: SCALE ·
+  SELECTED (with laterality) · NETWORK LOAD · SIGNAL INTEGRITY · AFFERENT RATE ·
+  EFFERENT DRIVE · OVERLAY, then session clock, licence, pause, help, fps, and
+  the standing chip *MODEL OUTPUT · NOT A MEASUREMENT*. Every meter's hover
+  text states its definition and that it is a model output.
+- **Workflow stepper** — 01 EXPLORE · 02 LAYER · 03 INTERVENE · 04 SIGNAL ·
+  05 OVERLAY · 06 INSPECT. Clickable; the active step expands a slim control
+  row that drives the same store and action paths as the side panels (one
+  source of truth), and each tab carries a bench-checklist status dot
+  (idle / live / applied).
+- **Viewport frame** — “THE BODY MODEL · ONE NETWORK · LIVE” with a
+  scale-dependent subtitle, a zoom chip (magnification relative to the
+  whole-body view), and at most two paper callout cards with short leader
+  lines on the selected structures.
+- **Stat strip** — INTEGRITY · STATE · LAYERS visible · RECEPTORS IN VIEW ·
+  AFF/EFF packet counts · SESSION id, labelled “model outputs · not
+  measurements”.
+- **Three analysis panes** — ACTIVITY (multi-series sparklines over a
+  selectable window + the meter grid + the afferent trace), COUPLING MAP (a
+  region × region matrix of co-elevated tension from the live solve — a
+  teaching map, not measured connectivity; clicking a cell selects both
+  regions), and UNDER OBSERVATION (the selected structure's live values, its
+  receptor classes, the selected teaching point, and REC session notes —
+  local free text, not clinical recording).
+- At deep scales (past the organ tier) the panes collapse so the anatomy owns
+  the pixels; the `panes` button restores them.
+
+### Colour roles (locked)
+
+One job per colour, never shared between jobs:
+
+| role | colour |
+| --- | --- |
+| tension load | amber → copper (`#f0a844` → `#ff7329`) |
+| bone / compression | stone ivory-grey (`#dbd6c7`) |
+| resting receptor | muted teal (class hue, desaturated) |
+| active receptor | cyan-shifted brightening of the class hue |
+| afferent packet | cyan → white, travelling **inward** |
+| somatic efferent | gold (`#ffc247`), travelling **outward** |
+| fusimotor efferent | thin gold-violet (`#cc9eff`) |
+| autonomic efferent | slow rose (`#ff6b9e`) |
+| chiropractic marks | slate blue (`#7a92c4`), disc + chevron |
+| acupuncture marks | jade (`#4fb38b`), teardrop |
+| massage marks | sand (`#d9b98c`), oval pad |
+
+Receptor *class identity* keeps its own per-class hue in chips, traces and
+glyphs — identification beats palette purity where the two collide. Overlay
+colours never appear on signals, and signal colours never appear on markers;
+direction is additionally encoded by motion (inward vs outward along the same
+trunks) and markers by shape.
+
+### HUD type scale
+
+| element | size / treatment |
+| --- | --- |
+| identity meter labels, stat-strip labels | 8–8.5 px, 0.12–0.14 em tracking, small caps |
+| identity meter values, stat figures | 11.5–12.5 px mono, tabular numerals |
+| pane titles | 9 px, 0.16 em tracking |
+| callout name | 12.5 px semibold; system tag 9 px caps |
+| body copy in panels | 11–13 px |
+
+## Efferent signalling
+
+The outward half of the loop, in `sim/efferent.js` + `gfx/efferentStreams.js`.
+Three schematic channels, no second physics engine:
+
+- **Somatic** — an alpha-like drive expressed through the *existing* tone path
+  (store → physiology → solver.setTone). The <kbd>B</kbd> motor burst adds a
+  transient that decays on its own.
+- **Fusimotor** — reads the same static / dynamic gamma controls the spindle
+  models already consume, so raising gamma genuinely changes the spindle's
+  afferent output: a closed loop, visible as outward gold-violet packets and
+  returning cyan ones.
+- **Autonomic** — a two-tone balance (parasympathetic-like ↔ sympathetic-like)
+  that applies small multipliers inside `physiology.js` to heart rate, gut
+  motility, breath depth and venous impedance. Shifting it visibly moves
+  packet traffic between the vagal and splanchnic routes. Magnitudes are
+  presentation choices; the validation matrix carries this module as
+  `speculative` and the UI labels it schematic.
+
+Packets travel distally along the same named trunks the afferent streams
+ascend, brighten and swell over the last stretch of the path (the arrival
+flash), and are budgeted by the same quality tier as the afferent field.
+
+## Teaching overlays
+
+`platform/overlays.js` + `data/overlays/{chiropractic,acupuncture,massage}.js`
+— platform datasets, not baked mesh. Every point is
+`{ id, system, name, anatomicalId, localOffset, source, confidence, notes }`,
+resolves against the permanent ID registry at load, rides the live deformation
+through its structure's nearest network node (the annotation anchoring rule),
+and is **reported, never invented** when its ID does not resolve. 69 points
+ship: 18 chiropractic contact regions, 24 acupuncture atlas points, 27
+massage / myofascial landmarks.
+
+**Teaching atlas. Not an indication. Not a protocol.** That caption is on the
+panel, on every point card, and in the API state. There is no adjustment
+animation and no treatment copy. The massage “demonstration” button applies a
+temporary, labelled restriction through the same intervention path as the
+manual tools — gated by the intervention capability, listed in the applied-load
+list like any other load, and removed by one click.
+
+`CONTINUUM.api.setOverlay(null | 'innervation' | 'chiropractic' | 'acupuncture'
+| 'massage' | 'all-teaching-points')` drives it programmatically; dataset
+objects still route to the research-overlay painter unchanged.
 
 ## Research overlays
 
@@ -710,7 +823,7 @@ anchor, a validation target, and an honest status — `grounded`, `partial`,
 measured data**, because this product holds no measured series, and the enum has
 no value that would let a row claim otherwise.
 
-Current inventory: 16 modules — 3 grounded, 7 partial, 3 novel, 1 speculative,
+Current inventory: 17 modules — 3 grounded, 7 partial, 3 novel, 2 speculative,
 2 out of scope for v1. `CONTINUUM.validation.summary()` returns the counts, and
 `node tools/check-validation-matrix.mjs` fails the build if the document and
 `src/platform/validation.js` stop agreeing.

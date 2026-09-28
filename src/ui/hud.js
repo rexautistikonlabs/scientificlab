@@ -102,6 +102,14 @@ const METERS = [
     max: 700,
   },
   {
+    id: 'efferentDrive',
+    label: 'Efferent drive',
+    unit: '%',
+    note: 'composite outward drive: somatic · fusimotor · autonomic',
+    color: '#d7a13b',
+    hi: false,
+  },
+  {
     id: 'excursion',
     label: 'Breath excursion',
     unit: '%',
@@ -455,6 +463,15 @@ export class Hud {
     );
     this.setMeter('bandwidth', clamp(su.bandwidth, 0, 1) * 100, (clamp(su.bandwidth, 0, 1) * 100).toFixed(0));
     this.setMeter('firing', su.firing, su.firing.toFixed(0));
+    if (this.efferent) {
+      const ef = this.efferent.out;
+      this.setMeter(
+        'efferentDrive',
+        ef.drive * 100,
+        (ef.drive * 100).toFixed(0),
+        `somatic ${(ef.somatic * 100).toFixed(0)} % · γ ${(ef.fusimotor * 100).toFixed(0)} % · symp ${(ef.sympathetic * 100).toFixed(0)} %`
+      );
+    }
     this.setMeter(
       'excursion',
       po.excursionRatio * 100,
@@ -491,7 +508,7 @@ export class Hud {
     if (!pop) return;
 
     /* grid */
-    c.strokeStyle = 'rgba(140,176,200,0.12)';
+    c.strokeStyle = 'rgba(94,84,60,0.18)';
     c.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
       const y = (H / 4) * i;
@@ -525,7 +542,7 @@ export class Hud {
     };
 
     // the mechanical event as it actually is, then what the ending receives
-    drawSeries(pop.idealTrace, 'rgba(220,232,240,0.55)', 1, 0.7);
+    drawSeries(pop.idealTrace, 'rgba(60,66,74,0.5)', 1, 0.7);
     drawSeries(pop.trace, pop.def.color, 1.6, 1);
 
     // firing tick marks along the top, at the current rate
@@ -654,7 +671,7 @@ export class Hud {
     const dpr = this._rasterDpr || 1;
     c.clearRect(0, 0, W, H);
 
-    c.strokeStyle = 'rgba(140,176,200,0.16)';
+    c.strokeStyle = 'rgba(94,84,60,0.22)';
     c.lineWidth = 1;
     c.beginPath();
     c.moveTo(0, H - 1);

@@ -98,15 +98,17 @@
         </div>
       </div>
 
-      <!-- Top bar -->
+      <!-- Identity bar: brand + purpose, the always-visible meter row, session chrome -->
       <header id="topbar" class="topbar" hidden>
         <div class="tb-brand">
           <span class="tb-logo" aria-hidden="true"></span>
           <span class="tb-name">CONTINUUM</span>
           <span class="tb-ver">1.0</span>
+          <span class="tb-purpose">Living anatomy · tension network · afferent / efferent teaching model</span>
         </div>
-        <nav class="tb-scales" id="scale-rail" aria-label="Scale navigation"></nav>
+        <div class="tb-meters" id="id-meters" aria-label="Live instrument summary"></div>
         <div class="tb-right">
+          <span class="tb-clock" id="id-clock" title="Session time">00:00</span>
           <button class="tb-btn tb-tier" id="btn-tier" title="Licence and plan">
             <span class="tier-badge" id="tier-badge">FREE</span><span class="tb-btn-lbl" id="tier-name">Explorer</span>
           </button>
@@ -114,11 +116,28 @@
             <span class="ic-pause"></span><span class="tb-btn-lbl">Running</span>
           </button>
           <button class="tb-btn" id="btn-help" title="Reference &amp; shortcuts (?)">?</button>
-          <button class="tb-perf" id="perf" title="Frame rate — click for the full diagnostics (⇧F)">
+          <button class="tb-perf" id="perf" title="Frame rate and quality tier — click for the full diagnostics (⇧F)">
             <span id="perf-fps">—</span><small>fps</small>
           </button>
+          <span class="tb-disclaimer-chip" title="Every figure on this instrument is a model output — not a measurement of any person.">MODEL OUTPUT · NOT A MEASUREMENT</span>
         </div>
       </header>
+
+      <!-- Workflow stepper: a clickable lab-bench checklist. The active step
+           expands a slim control row; each control drives the same store /
+           action paths as the side panels, so there is one source of truth. -->
+      <nav id="stepper" class="stepper" hidden aria-label="Workflow">
+        <div class="stepper-tabs" id="stepper-tabs"></div>
+        <div class="stepper-row" id="stepper-row" hidden></div>
+      </nav>
+
+      <!-- Viewport frame: title above the canvas + the zoom chip. -->
+      <div id="vp-title" class="vp-title" hidden>
+        <b>THE BODY MODEL · ONE NETWORK · LIVE</b>
+        <em id="vp-subtitle">standing body · one metre eighty of pre-stressed tissue</em>
+      </div>
+      <div id="vp-zoom" class="vp-zoom" hidden>1.00×</div>
+      <nav class="tb-scales" id="scale-rail" aria-label="Scale navigation" hidden></nav>
 
       <!-- Left: systems + scales -->
       <aside id="panel-left" class="panel panel-left" hidden>
@@ -143,6 +162,16 @@
           <section class="pgroup">
             <h2 class="pgroup-h">Receptor classes</h2>
             <div id="receptor-list" class="chip-grid"></div>
+          </section>
+
+          <section class="pgroup" id="sec-teaching-overlays">
+            <h2 class="pgroup-h">Teaching overlays</h2>
+            <p class="pnote">
+              Chiropractic contact regions, acupuncture atlas points and massage / myofascial landmarks,
+              bound to the model's anatomy by permanent ID. <b>Teaching atlas. Not an indication. Not a
+              protocol.</b>
+            </p>
+            <div id="overlay-teaching"></div>
           </section>
 
           <section class="pgroup" data-cap="data.overlays">
@@ -285,16 +314,45 @@
         <span>CONTINUUM</span><em>Explorer edition · macro anatomy</em>
       </div>
 
-      <!-- Bottom: live telemetry -->
-      <section id="telemetry" class="telemetry" hidden>
-        <div class="tm-meters" id="tm-meters"></div>
-        <div class="tm-traces">
-          <div class="tm-trace" id="tm-trace">
-            <header><span>Afferent trace</span><em id="trace-label">— resting baseline</em></header>
-            <canvas id="trace-canvas" height="76"></canvas>
-          </div>
+      <!-- Bottom instrument: stat strip + three analysis panes -->
+      <div id="atlas-bottom" class="atlas-bottom" hidden>
+        <div id="statstrip" class="statstrip" aria-label="Session status">
+          <span class="ss-cell"><b>INTEGRITY</b><em id="ss-integrity">—</em></span>
+          <span class="ss-cell"><b>STATE</b><em id="ss-state">exploring</em></span>
+          <span class="ss-cell"><b>LAYERS</b><em id="ss-layers">—</em></span>
+          <span class="ss-cell"><b>RECEPTORS IN VIEW</b><em id="ss-receptors">—</em></span>
+          <span class="ss-cell"><b>AFF / EFF PACKETS</b><em id="ss-packets">—</em></span>
+          <span class="ss-cell"><b>SESSION</b><em id="ss-session">—</em></span>
+          <span class="ss-cell ss-note">model outputs · not measurements</span>
+          <button class="mini" id="btn-panes" title="Collapse or restore the analysis panes">panes</button>
         </div>
-      </section>
+        <div class="atlas-panes" id="atlas-panes">
+          <!-- Pane A: activity per system (the live telemetry instrument) -->
+          <section id="telemetry" class="pane telemetry">
+            <header class="pane-h"><span>ACTIVITY · PER SYSTEM</span><em id="pane-a-note">every figure is a model output</em></header>
+            <div class="pane-scroll">
+              <div id="activity-spark"></div>
+              <div class="tm-meters" id="tm-meters"></div>
+              <div class="tm-traces">
+                <div class="tm-trace" id="tm-trace">
+                  <header><span>Afferent trace</span><em id="trace-label">— resting baseline</em></header>
+                  <canvas id="trace-canvas" height="76"></canvas>
+                </div>
+              </div>
+            </div>
+          </section>
+          <!-- Pane B: which regions are exchanging tension this frame -->
+          <section id="pane-coupling" class="pane">
+            <header class="pane-h"><span>COUPLING MAP · REGIONS</span><em>teaching map from the live solve — not measured connectivity</em></header>
+            <div class="pane-scroll"><canvas id="coupling-canvas"></canvas><p class="pnote" id="coupling-note">Co-elevated tension between body regions. Click a cell to select both regions in the viewport.</p></div>
+          </section>
+          <!-- Pane C: whatever is under observation right now -->
+          <section id="pane-observe" class="pane">
+            <header class="pane-h"><span>UNDER OBSERVATION</span><em id="observe-note">selection · focus · notes</em></header>
+            <div class="pane-scroll" id="observe-body"></div>
+          </section>
+        </div>
+      </div>
 
       <!-- Scale readout -->
       <div id="scalebar" class="scalebar" hidden>
@@ -495,6 +553,22 @@ location.reload();</pre>
               <li><b>Shift-click</b> adds to the selection. <b>Double-click</b> flies to a structure.</li>
               <li><kbd>I</kbd> isolate · <kbd>X</kbd> hide · <kbd>R</kbd> reset.</li>
             </ul>
+            <p>
+              <b>Signal direction legend:</b> afferent packets are <b>cyan → white and travel inward</b>
+              (receptor to brainstem); efferent packets travel <b>outward</b> — <b>gold</b> somatic drive,
+              thin <b>gold-violet</b> fusimotor drive to the spindles, slow <b>rose</b> autonomic outflow.
+              Shifting the autonomic balance (workflow step 04) visibly moves traffic between the vagal and
+              splanchnic routes; the gamma sliders close a real loop, because the spindle models read them.
+              All of it is schematic teaching traffic driven by live model values.
+            </p>
+            <p>
+              <b>Teaching overlays</b> (workflow step 05, or the left panel): chiropractic contact regions
+              (slate discs), acupuncture atlas points (jade teardrops) and massage / myofascial landmarks
+              (sand ovals), each bound to the model's anatomy by permanent ID with its confidence and source
+              stated. <b>Teaching atlas. Not an indication. Not a protocol.</b> The massage demonstration
+              button applies a temporary, labelled restriction through the same intervention path as the
+              manual tools — a physics demonstration on the model, not a procedure.
+            </p>
           </section>
 
           <section class="help-sec" id="h-intervene">
@@ -675,9 +749,11 @@ CONTINUUM.validation.needsSourcing() // the working to-do list</pre>
               <div>
                 <ul class="ov-list">
                   <li><kbd>?</kbd> this panel · <kbd>Esc</kbd> close, clear selection, or leave the tour</li>
-                  <li><kbd>1</kbd>–<kbd>5</kbd> jump scale tiers</li>
+                  <li><kbd>1</kbd>–<kbd>6</kbd> jump scale tiers</li>
                   <li><kbd>Space</kbd> pause / resume the physiology</li>
                   <li><kbd>Shift</kbd>+<kbd>M</kbd> pin Microscope mode</li>
+                  <li><kbd>A</kbd> afferent streams · <kbd>E</kbd> efferent streams · <kbd>B</kbd> motor burst</li>
+                  <li><kbd>O</kbd> cycle teaching overlays</li>
                 </ul>
               </div>
               <div>

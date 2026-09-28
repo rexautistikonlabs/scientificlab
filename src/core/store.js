@@ -279,9 +279,23 @@ class Store extends Emitter {
 
     this.tool = { mode: 'restriction', magnitude: 0.6, radius: 0.14 };
 
+    /* Efferent teaching channels. The autonomic balance is a schematic
+       two-tone control (0 = parasympathetic-like dominance, 1 = sympathetic-
+       like); `reflex` enables the schematic venous-return nudge. */
+    this.efferent = {
+      autonomicBalance: 0.5,
+      reflex: true,
+    };
+
+    /** active teaching overlay systems: 'chiropractic' | 'acupuncture' | 'massage' */
+    this.teachingOverlays = new Set();
+    /** teaching overlay marker density 0.4..1 */
+    this.overlayDensity = 1;
+
     this.render = {
       bloom: 0.32,
       signals: true,
+      efferent: true,
       forceColor: true,
       network: false,
       exposure: 1.0,
@@ -467,10 +481,40 @@ class Store extends Emitter {
     this.emit('tool', k);
   }
 
+  /* ---------- efferent ---------- */
+
+  setEfferent(k, v) {
+    this.efferent[k] = v;
+    this.emit('efferent', k);
+  }
+
+  /* ---------- teaching overlays ---------- */
+
+  /**
+   * Toggle one teaching overlay system, or set the whole active set.
+   * `setTeachingOverlays(null)` clears; `'all'` enables every known system.
+   */
+  toggleTeachingOverlay(id) {
+    if (this.teachingOverlays.has(id)) this.teachingOverlays.delete(id);
+    else this.teachingOverlays.add(id);
+    this.emit('teachingOverlays');
+  }
+
+  setTeachingOverlays(list) {
+    this.teachingOverlays = new Set(list || []);
+    this.emit('teachingOverlays');
+  }
+
+  setOverlayDensity(v) {
+    this.overlayDensity = clamp(v, 0.3, 1);
+    this.emit('teachingOverlays');
+  }
+
   /** Render toggles that are premium visualisation features. */
   static GATED_RENDER = {
     forceColor: 'viz.forceColor',
     signals: 'viz.signals',
+    efferent: 'viz.signals',
     network: 'viz.network',
   };
 

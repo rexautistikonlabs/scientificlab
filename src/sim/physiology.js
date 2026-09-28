@@ -196,8 +196,19 @@ export class Physiology {
     const sdt = dt * speed;
     this.time += sdt;
 
+    /* Efferent modulation — schematic two-tone autonomic multipliers plus the
+       somatic drive (tone + voluntary burst). All of it flows through the same
+       paths this system already had: rate, depth, motility, tone. When no
+       efferent module is attached every factor is identity. */
+    const eff = this.efferent?.out;
+    const hrMul = eff?.hrMul ?? 1;
+    const motilityMul = eff?.motilityMul ?? 1;
+    const breathMul = eff?.breathMul ?? 1;
+    const vaso = eff?.vasoImpedance ?? 0;
+    const toneEff = eff?.somatic ?? p.tone;
+
     /* ---------------- phases ---------------- */
-    const hr = p.heartRate;
+    const hr = p.heartRate * hrMul;
     const rr = p.respRate;
     this.cardiacPhase = (this.cardiacPhase + (sdt * hr) / 60) % 1;
     const prevResp = this.respPhase;
@@ -226,7 +237,7 @@ export class Physiology {
     this.breath = breathRaw;
     this.breathRate = (this.breath - this._breathPrev) / Math.max(dt, 1e-4);
 
-    const depth = p.breathDepth;
+    const depth = p.breathDepth * breathMul;
     const s = this.solver;
 
     /* ---------------- respiratory drive ---------------- */
@@ -307,12 +318,13 @@ export class Physiology {
       const g = this._gate(i);
       const b = plan.breath * depth * this.breath * g;
       let m = 0;
+      const mot = p.motility * motilityMul;
       if (plan.period > 0) {
         const ph = (this.motilityPhase / plan.period) * TAU + plan.seed;
         // peristalsis is a travelling contraction, not a standing oscillation
-        m = plan.motility * p.motility * (Math.sin(ph) * 0.7 + 0.3 * Math.sin(ph * 2.3 + 1.1)) * g;
+        m = plan.motility * mot * (Math.sin(ph) * 0.7 + 0.3 * Math.sin(ph * 2.3 + 1.1)) * g;
       }
-      const wobble = plan.motility * 0.35 * p.motility * fbm1(this.motilityPhase * 0.5 + plan.seed, 2, plan.seed) * g;
+      const wobble = plan.motility * 0.35 * mot * fbm1(this.motilityPhase * 0.5 + plan.seed, 2, plan.seed) * g;
       s.restOffset(i, plan.dir.x * b + wobble, plan.dir.y * b + m, plan.dir.z * b + m * 0.4);
       visceralMotion += Math.abs(m) + Math.abs(b);
     }
@@ -323,7 +335,7 @@ export class Physiology {
     // and any applied compression
     let extPressure = 0;
     for (let i = 0; i < s.count; i++) extPressure = Math.max(extPressure, s.pressure[i]);
-    const iapTarget = clamp(0.16 + 0.42 * this.breath * depth + 0.3 * (p.tone - 0.4) + 0.5 * extPressure, 0, 1);
+    const iapTarget = clamp(0.16 + 0.42 * this.breath * depth + 0.3 * (toneEff - 0.4) + 0.5 * extPressure, 0, 1);
     const iap = this._iap.step(iapTarget, dt);
 
     // thoracic pump: inspiration drops intrathoracic pressure and augments return.
@@ -334,7 +346,7 @@ export class Physiology {
       venousImpedance += s.pressure[i] * 0.7 + s.stiffness[i] * 0.35;
       n++;
     }
-    venousImpedance /= Math.max(1, n);
+    venousImpedance = venousImpedance / Math.max(1, n) + vaso;
     const vrTarget = clamp((0.82 + 0.34 * this.breath * depth) * (1 - 1.8 * venousImpedance), 0.15, 1.35);
     const venousReturn = this._vr.step(vrTarget, dt);
 
@@ -351,7 +363,7 @@ export class Physiology {
     const perfusion = clamp(venousReturn * (1 - 0.85 * extPressure), 0.1, 1.3);
 
     /* ---------------- tone ---------------- */
-    s.setTone(clamp(p.tone + 0.06 * this.breath * depth, 0, 1));
+    s.setTone(clamp(toneEff + 0.06 * this.breath * depth, 0, 1));
 
     /* ---------------- publish ---------------- */
     const o = this.out;

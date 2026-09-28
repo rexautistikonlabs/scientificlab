@@ -288,6 +288,20 @@ export const VALIDATION_ROWS = [
       'calibration is not started.',
   },
   {
+    id: 'efferent',
+    module: 'Efferent teaching channels (somatic, fusimotor, autonomic)',
+    surface: 'sim/efferent.js, gfx/efferentStreams.js — outward packet streams and physiology multipliers',
+    anchors: ['textbook sign conventions only (sympathetic: rate up, motility down; parasympathetic the reverse)', 'gamma → spindle loop uses the existing spindle models'],
+    target: 'Any quantitative claim would need measured autonomic or motor outflow; none is modelled or implied.',
+    status: 'speculative',
+    evidence:
+      'Somatic drive rides the existing tone path; the gamma drives are the same controls the spindle models already read, ' +
+      'so that loop is real within the model. The autonomic balance applies small fixed multipliers (heart rate ×0.86–1.22, ' +
+      'motility ×1.25–0.55, breath depth ×1.06–0.94, a venous-impedance offset) whose magnitudes are presentation choices. ' +
+      'The optional venous-return reflex is a shape borrowed from the baroreflex, labelled schematic in the UI.',
+    next: 'Keep the channel drives visibly labelled as teaching quantities; never attach units or claim outflow magnitudes.',
+  },
+  {
     id: 'rex-hypothesis',
     module: 'Rex zone / restriction hypothesis as a scientific claim',
     surface: 'expressed through the perturbation layer; no dedicated code path',
