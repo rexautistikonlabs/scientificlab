@@ -65,9 +65,94 @@ export class AtlasShell {
     this._buildIdentityMeters();
     this._buildStepper();
     this._wireStatStrip();
+    this._initCollapse();
 
     this.subtitle = el('#vp-subtitle');
     this.zoomChip = el('#vp-zoom');
+  }
+
+  /* ============================================================
+     Per-pane collapse
+
+     Every information pane collapses independently to its title
+     chip — no empty slab — and the state persists per browser.
+     `]` toggles the pane under the pointer; `Shift+]` collapses or
+     restores the lot. The identity bar and the disclaimer are not
+     collapsible, by design.
+     ============================================================ */
+
+  _initCollapse() {
+    const KEY = 'continuum.panes.v1';
+    this._paneKey = KEY;
+    this._panes = [
+      { id: 'systems', sel: '#panel-left', label: 'Systems' },
+      { id: 'inspector', sel: '#panel-right', label: 'Inspector' },
+      { id: 'activity', sel: '#telemetry', label: 'Activity' },
+      { id: 'coupling', sel: '#pane-coupling', label: 'Coupling map' },
+      { id: 'observe', sel: '#pane-observe', label: 'Under observation' },
+    ];
+    let saved = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    } catch {
+      /* unavailable storage → session-only state */
+    }
+    this._hoverPane = null;
+
+    for (const p of this._panes) {
+      p.el = el(p.sel);
+      if (!p.el) continue;
+      const isSide = p.el.classList.contains('panel');
+      let host = p.el.querySelector('.pane-h');
+      if (isSide) {
+        host = make('div', 'panel-head', `<span>${p.label}</span>`);
+        p.el.prepend(host);
+      }
+      const btn = make('button', 'pane-toggle', '▾');
+      btn.title = `Collapse / expand ${p.label} ( ] over the pane · ⇧] all panes)`;
+      btn.setAttribute('aria-label', `Collapse ${p.label}`);
+      btn.addEventListener('click', () => this.togglePane(p.id));
+      host.appendChild(btn);
+      p.btn = btn;
+      p.el.addEventListener('pointerenter', () => (this._hoverPane = p.id));
+      p.el.addEventListener('pointerleave', () => {
+        if (this._hoverPane === p.id) this._hoverPane = null;
+      });
+      if (saved[p.id]) this._setPaneMin(p, true, false);
+    }
+  }
+
+  _setPaneMin(p, min, persist = true) {
+    if (!p?.el) return;
+    p.el.classList.toggle('min', min);
+    if (p.btn) p.btn.textContent = min ? '▸' : '▾';
+    if (persist) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(this._paneKey) || '{}');
+        saved[p.id] = min ? 1 : 0;
+        localStorage.setItem(this._paneKey, JSON.stringify(saved));
+      } catch {
+        /* fine — state just does not persist */
+      }
+    }
+  }
+
+  togglePane(id) {
+    const p = this._panes.find((x) => x.id === (id || this._hoverPane));
+    if (!p?.el) return false;
+    this._setPaneMin(p, !p.el.classList.contains('min'));
+    return true;
+  }
+
+  /** ⇧] — if anything is expanded, collapse everything; else restore all. */
+  toggleAllPanes() {
+    const anyOpen = this._panes.some((p) => p.el && !p.el.classList.contains('min'));
+    for (const p of this._panes) this._setPaneMin(p, anyOpen);
+    this.hud.toast(anyOpen ? 'All panes collapsed — <b>⇧]</b> restores them' : 'Panes restored', 2200);
+  }
+
+  get hoveredPane() {
+    return this._hoverPane;
   }
 
   /* ============================================================
@@ -151,6 +236,15 @@ export class AtlasShell {
       });
     }
     this._chip('Frame selection', 'Frame the current selection (F)', () => this.actions.frameSelection());
+    this._chip(
+      'Track selection',
+      'When on, selecting a structure flies the camera to it. Off by default — the specimen sits still unless you ask.',
+      (c) => {
+        this.store.setCameraTrack(!this.store.cameraTrack);
+        c.classList.toggle('on', this.store.cameraTrack);
+      },
+      { on: this.store.cameraTrack }
+    );
     this._chip('Isolate', 'Isolate the selected systems (I)', () => this.actions.isolateSelection(), { cap: 'select.isolate' });
     this._chip('Reset view', 'Reset visibility and camera (R)', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));

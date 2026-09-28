@@ -771,6 +771,12 @@ async function main() {
       const want = store.selection.has(s.key) ? 1 : 0;
       if (s._hi !== want) registry.setHighlight(s.key, want);
     }
+    /* Opt-in tracking only. 49dee51 removed every surprise camera follow; this
+       flight happens solely when the user has switched Track selection ON. */
+    if (store.cameraTrack && store.selection.size === 1 && !store.micro.active) {
+      const s = registry.get([...store.selection][0]);
+      if (s) controls.flyTo({ target: s.center.clone(), duration: 0.9 });
+    }
     /* Selecting a structure while the microscope is running moves the
        microscope to it — selection is the "examine this" gesture, and at
        depth "this" means this structure's local tissue. */
@@ -1127,6 +1133,14 @@ async function main() {
       case 'b':
         efferent.pulse(1);
         hud.toast('<b>Motor burst</b> — a transient rise in alpha-like drive through the tone path', 2400);
+        break;
+      case ']':
+        // Shift+] arrives as '}' on most layouts, but check both to be safe
+        if (e.shiftKey) atlas.toggleAllPanes();
+        else if (!atlas.togglePane(null)) hud.toast('Hover a pane, then press <b>]</b> to collapse it — <b>⇧]</b> collapses all', 2600);
+        break;
+      case '}':
+        atlas.toggleAllPanes();
         break;
       case 'o': {
         // cycle: none → chiropractic → acupuncture → massage → all → none
@@ -1517,6 +1531,7 @@ async function main() {
     /* UI, for tests and for hosts that need to re-sync after changing state */
     panels,
     hud,
+    atlas,
     /* platform */
     ids,
     props,

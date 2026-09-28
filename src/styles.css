@@ -3710,3 +3710,46 @@ body.panes-collapsed .panel {
 
 /* channel caption inherits panel note styling; give it the jade cue */
 .ovl-channel-note { border-left: 2px solid #4fb38b; padding-left: 8px; }
+
+/* ============================================================
+   Per-pane collapse — title chip only, no empty slab
+   ============================================================ */
+.pane-toggle {
+  margin-left: auto;
+  flex: none;
+  font-size: 10px;
+  color: var(--ink-3);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0 5px;
+  line-height: 16px;
+}
+.pane-toggle:hover { color: var(--ink); border-color: var(--line-2); }
+
+/* side panels get a slim head bar carrying the label + toggle */
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.panel.min { max-height: none; height: auto; }
+.panel.min .panel-head { border-bottom: 0; }
+.panel.min .panel-scroll { display: none; }
+
+/* bottom panes: collapsed = header chip resting on the bottom line */
+.atlas-panes { align-items: end; height: auto; }
+.atlas-panes .pane { height: 196px; transition: height 0.18s ease; }
+.atlas-panes .pane.min { height: auto; }
+.pane.min .pane-scroll { display: none; }
+.pane.min .pane-h { border-bottom: 0; }
+.pane.min .pane-h em { display: none; }
+
+/* pane A is a real pane now, not a click-through HUD strip */
+.telemetry.pane { pointer-events: auto; }

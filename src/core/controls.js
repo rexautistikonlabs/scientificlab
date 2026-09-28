@@ -74,7 +74,14 @@ export class Controls {
       this._pointers.set(e.pointerId, new THREE.Vector2(e.clientX, e.clientY));
       this._moved = 0;
       if (this._pointers.size === 1) {
-        this._mode = e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey) ? 'pan' : 'orbit';
+        /* Lab-demo button map:
+             LMB              orbit (yaw wraps, pitch clamps — no pole lock)
+             MMB / Shift+LMB  pan
+             RMB / Alt+LMB    pitch-only tilt (roll-limited; never inverts)
+           Touch stays: one finger orbits, two fingers pan, pinch dollies. */
+        if (e.button === 1 || (e.button === 0 && e.shiftKey)) this._mode = 'pan';
+        else if (e.button === 2 || (e.button === 0 && e.altKey)) this._mode = 'tilt';
+        else this._mode = 'orbit';
         this._last.set(e.clientX, e.clientY);
         d.classList.add('grabbing');
       } else if (this._pointers.size === 2) {
@@ -100,6 +107,14 @@ export class Controls {
         this._last.set(e.clientX, e.clientY);
       } else if (this._mode === 'pan' && this._pointers.size === 1) {
         this._pan(e.clientX - this._last.x, e.clientY - this._last.y);
+        this._last.set(e.clientX, e.clientY);
+      } else if (this._mode === 'tilt' && this._pointers.size === 1) {
+        // pitch only: vertical drag tilts, horizontal drag is ignored, and the
+        // same phi clamp as orbit means the view can never flip past a pole
+        const dy = e.clientY - this._last.y;
+        this._moved += Math.abs(dy);
+        const h = this.dom.clientHeight || 1;
+        this.phi = clamp(this.phi - (dy / h) * Math.PI * 1.1 * this.rotateSpeed, this.minPhi, this.maxPhi);
         this._last.set(e.clientX, e.clientY);
       } else if (this._mode === 'pinch' && this._pointers.size >= 2) {
         const nd = this._pinchDist();

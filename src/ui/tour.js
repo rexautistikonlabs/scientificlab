@@ -127,7 +127,7 @@ export class Tour {
         side: 'centre-low',
         title: 'Move around the body',
         body:
-          'Drag to orbit, right-drag or two-finger drag to pan, wheel or pinch to move in and out. The heart and ' +
+          'Drag to orbit, middle- or Shift-drag (two fingers) to pan, wheel or pinch to move in and out. The heart and ' +
           'the breath are already running — nothing here is a still image.',
       },
       {

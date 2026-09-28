@@ -287,6 +287,11 @@ class Store extends Emitter {
       reflex: true,
     };
 
+    /* Opt-in camera follow. OFF by default and deliberately so: 49dee51 removed
+       every surprise follow behaviour, and this toggle is the one sanctioned
+       way to get "fly to what I select" back. */
+    this.cameraTrack = false;
+
     /** active teaching overlay systems: 'chiropractic' | 'acupuncture' | 'massage' */
     this.teachingOverlays = new Set();
     /** teaching overlay marker density 0.4..1 */
@@ -479,6 +484,11 @@ class Store extends Emitter {
     if (!entitlements.require('tool.intervention', { param: k })) return;
     this.tool[k] = v;
     this.emit('tool', k);
+  }
+
+  setCameraTrack(v) {
+    this.cameraTrack = !!v;
+    this.emit('cameraTrack');
   }
 
   /* ---------- efferent ---------- */
