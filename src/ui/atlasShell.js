@@ -297,6 +297,7 @@ export class AtlasShell {
     const auto = this.scales.tier >= 2.6; // deep scales: anatomy owns the pixels
     const closed = this._userPref ? this._userPref === 'closed' : auto;
     this.panesEl.classList.toggle('collapsed', closed);
+    document.body.classList.toggle('panes-collapsed', closed);
     document.body.classList.toggle('atlas-deep', this.scales.tier >= 2.6);
   }
 

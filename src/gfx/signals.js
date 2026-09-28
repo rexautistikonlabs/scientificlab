@@ -22,7 +22,8 @@ import { nerveTrunks } from '../anatomy/neuro.js';
 import { VERTEBRAE } from '../anatomy/landmarks.js';
 import { clamp, rng } from '../core/util.js';
 
-import { signalMaterial, networkMaterial, microPulseMaterial } from './materials.js';
+import { signalMaterial, microPulseMaterial } from './materials.js';
+import { networkCableMaterial, networkCableGeometry } from './anatomyMaterials.js';
 import { STRUT } from '../sim/tensegrity.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -319,25 +320,13 @@ export class SignalStreams {
 export class NetworkOverlay {
   constructor(solver) {
     this.solver = solver;
-    const m = solver.elemCount;
-    this.positions = new Float32Array(m * 6);
-    const tension = new Float32Array(m * 2);
-    const kind = new Float32Array(m * 2);
-    for (let e = 0; e < m; e++) {
-      const k = solver.ekind[e] === STRUT ? 1 : 0;
-      kind[e * 2] = k;
-      kind[e * 2 + 1] = k;
-    }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-    this.tensionAttr = new THREE.BufferAttribute(tension, 1);
-    geom.setAttribute('aTension', this.tensionAttr);
-    geom.setAttribute('aKind', new THREE.BufferAttribute(kind, 1));
-    geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 2.2);
-    this.posAttr = geom.getAttribute('position');
 
-    this.material = networkMaterial();
-    this.lines = new THREE.LineSegments(geom, this.material);
+    /* Instanced camera-facing ribbons, one per element. Endpoints, load colour
+       and load-driven width all come from the same 256×1 field texture the
+       tissue shaders read, so the cables ride the solve with no per-frame CPU
+       writes at all — the GL-line version rewrote two arrays every frame. */
+    this.material = networkCableMaterial();
+    this.lines = new THREE.Mesh(networkCableGeometry(solver, STRUT), this.material);
     this.lines.frustumCulled = false;
     this.lines.renderOrder = 18;
     this.lines.name = 'tensionNetwork';
@@ -367,20 +356,17 @@ export class NetworkOverlay {
     this.group.visible = false;
   }
 
-  update(store) {
-    const vis = store.effectiveOpacity('network') > 0.004;
+  update(store, tier = 0) {
+    /* The network is body-scale chrome: a 2 mm cable filling a 200 µm frame is
+       a wall, not an underlay, so the whole overlay fades out across the
+       tissue tier the same way the teaching markers do. */
+    const tierFade = clamp(1 - (tier - 2.2) / 0.8, 0, 1);
+    this.material.uniforms.uTierFade.value = tierFade;
+    const vis = store.effectiveOpacity('network') > 0.004 && tierFade > 0.01;
     this.group.visible = vis;
     if (!vis) return;
     const s = this.solver;
-    s.writeLinePositions(this.positions);
-    this.posAttr.needsUpdate = true;
-    const t = this.tensionAttr.array;
-    for (let e = 0; e < s.elemCount; e++) {
-      const v = Math.min(1.4, s.etenSm[e] / Math.max(0.02, s._loadNorm * 0.5));
-      t[e * 2] = v;
-      t[e * 2 + 1] = v;
-    }
-    this.tensionAttr.needsUpdate = true;
+    // the cables read the field texture; only the node dots still need CPU positions
     const np = this.nodePos.array;
     for (let i = 0; i < s.count * 3; i++) np[i] = s.pos[i];
     this.nodePos.needsUpdate = true;

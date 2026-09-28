@@ -99,7 +99,7 @@ export class ViewportCallouts {
       const y = rect.top + ((1 - this._v.y) / 2) * rect.height;
       const panesOpen = !document.getElementById('atlas-panes')?.classList.contains('collapsed');
       // stay clear of the right panel and the bottom instrument
-      const cx = clamp(x + 26, 70, window.innerWidth - 560);
+      const cx = clamp(x + 26, 292, window.innerWidth - 560);
       const cy = clamp(y - 30, 108, window.innerHeight - (panesOpen ? 380 : 170));
       card.el.style.transform = `translate(${cx.toFixed(0)}px, ${cy.toFixed(0)}px)`;
       card.el.style.opacity = '1';

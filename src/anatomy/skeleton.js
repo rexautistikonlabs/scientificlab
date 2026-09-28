@@ -20,8 +20,10 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const BONE = {
   color: 0xcabfa2,
   opacity: 1,
-  rough: 0.55,
-  spec: 0.26,
+  // ivory satin: form from the light rig with only a restrained sheen — dense
+  // periosteal bone is the driest surface in the scene and must read that way
+  rough: 0.62,
+  spec: 0.19,
   rim: 0.24,
   // periosteal bone is satin, not wet — keep the transmission to a trace so a
   // backlit rib warms slightly without ever glowing like soft tissue

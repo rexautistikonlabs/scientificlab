@@ -1405,7 +1405,7 @@ async function main() {
     // one dot per action potential in transit, placed by how long ago the spike
     // generator emitted it — not by a phase of its own
     microPulses.update(microSpindle, store.micro.active && micro.root.visible);
-    overlay.update(store);
+    overlay.update(store, scales.tier);
     measures.update();
     annotations.update();
 

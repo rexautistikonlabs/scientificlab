@@ -28,6 +28,7 @@
 
 import * as THREE from 'three';
 import { GLOBAL } from './materials.js';
+import { MAX_NODES } from '../sim/tensegrity.js';
 
 /* ============================================================
    Efferent packet streams
@@ -136,6 +137,174 @@ export function efferentSignalMaterial() {
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
+  });
+}
+
+/* ============================================================
+   Tension-network cables — instanced camera-facing ribbons.
+
+   One instance per element. Both endpoints and the load colour come
+   from the SAME 256×1 field texture every tissue shader reads, so
+   the cables ride the solve with zero per-frame CPU work: the old
+   GL-line overlay rewrote two arrays per frame; this rewrites
+   nothing. Width and the amber→copper ramp encode load; struts stay
+   stone ivory at constant width, because compression cores do not
+   "tighten".
+
+   Drawn additively with no depth write: a luminous underlay beneath
+   the anatomy, never a replacement for it.
+   ============================================================ */
+
+const CABLE_VERT = /* glsl */ `
+  attribute vec3 iA;         // endpoint home positions
+  attribute vec3 iB;
+  attribute vec2 iNodes;     // solver node indices
+  attribute float iKind;     // 0 cable, 1 strut
+
+  uniform sampler2D tField;
+  uniform float uDispScale;
+  uniform vec3 uCamPos;
+  uniform float uWidth;      // cable half-width at rest, metres
+
+  varying float vT;          // packed load at this fragment (0.5 = rest)
+  varying float vKind;
+  varying float vS;          // -1..1 across the ribbon
+  varying float vY;          // 0..1 along the element
+
+  vec4 fieldAt(float idx) {
+    return texture2D(tField, vec2((idx + 0.5) / ${MAX_NODES}.0, 0.5));
+  }
+
+  void main() {
+    vec4 fa = fieldAt(iNodes.x);
+    vec4 fb = fieldAt(iNodes.y);
+    vec3 pa = iA + fa.xyz * uDispScale;
+    vec3 pb = iB + fb.xyz * uDispScale;
+
+    float t = position.y;      // 0..1 along the element
+    float s = position.x;      // -1..1 across
+    vT = mix(fa.w, fb.w, t);
+    vKind = iKind;
+    vS = s;
+    vY = t;
+
+    vec3 p = mix(pa, pb, t);
+    vec3 axis = normalize(pb - pa + vec3(1e-9));
+    vec3 view = normalize(uCamPos - p);
+    vec3 across = normalize(cross(axis, view));
+
+    // load thickens a cable; a strut keeps its bone-like constant girth
+    float dev = clamp((vT - 0.5) * 4.0, 0.0, 1.4);
+    float half_w = uWidth * (iKind > 0.5 ? 1.8 : 0.7 + 0.85 * dev);
+    p += across * s * half_w;
+
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
+  }
+`;
+
+const CABLE_FRAG = /* glsl */ `
+  precision highp float;
+  uniform float uOpacity;
+  uniform float uTierFade;
+  varying float vT;
+  varying float vKind;
+  varying float vS;
+  varying float vY;
+  void main() {
+    // tube impostor: round profile across the ribbon, soft edges
+    float r = clamp(abs(vS), 0.0, 1.0);
+    float profile = sqrt(max(0.0, 1.0 - r * r));
+    float dev = clamp((vT - 0.5) * 4.0, 0.0, 1.4);
+
+    // the locked ramp: amber at rest → copper under load; struts stone ivory
+    vec3 cable = mix(vec3(0.50, 0.38, 0.20), vec3(1.0, 0.44, 0.15), clamp(dev, 0.0, 1.0));
+    cable = mix(cable, vec3(1.0, 0.62, 0.30), max(0.0, dev - 1.0)); // overload lifts toward hot
+    vec3 strut = vec3(0.62, 0.60, 0.55);
+    vec3 col = mix(cable, strut, vKind);
+
+    // curvature shading so the ribbon reads as a rod, not a strip
+    col *= 0.45 + 0.75 * profile;
+
+    float a = uOpacity * uTierFade * profile * (vKind > 0.5 ? 0.55 : 0.35 + 0.85 * clamp(dev, 0.0, 1.0));
+    gl_FragColor = vec4(col * (0.7 + 1.0 * clamp(dev, 0.0, 1.0) * (1.0 - vKind)), a);
+  }
+`;
+
+export function networkCableMaterial() {
+  return new THREE.ShaderMaterial({
+    vertexShader: CABLE_VERT,
+    fragmentShader: CABLE_FRAG,
+    uniforms: {
+      tField: GLOBAL.tField,
+      uDispScale: GLOBAL.uDispScale,
+      uCamPos: GLOBAL.uCamPos,
+      uWidth: { value: 0.0021 },
+      uOpacity: { value: 0.5 },
+      uTierFade: { value: 1 },
+    },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
+
+/**
+ * Instanced ribbon geometry for the whole network: a 2-triangle quad per
+ * element, endpoints and node indices baked once from the solver's homes.
+ */
+export function networkCableGeometry(solver, STRUT_KIND) {
+  const quad = new THREE.PlaneGeometry(2, 1, 1, 3); // x: -1..1 across, y: 0..1 along
+  quad.translate(0, 0.5, 0);
+  const inst = new THREE.InstancedBufferGeometry();
+  inst.index = quad.index;
+  inst.setAttribute('position', quad.getAttribute('position'));
+
+  const m = solver.elemCount;
+  const A = new Float32Array(m * 3);
+  const B = new Float32Array(m * 3);
+  const N = new Float32Array(m * 2);
+  const K = new Float32Array(m);
+  for (let e = 0; e < m; e++) {
+    const a = solver.ea[e];
+    const b = solver.eb[e];
+    A[e * 3] = solver.home[a * 3];
+    A[e * 3 + 1] = solver.home[a * 3 + 1];
+    A[e * 3 + 2] = solver.home[a * 3 + 2];
+    B[e * 3] = solver.home[b * 3];
+    B[e * 3 + 1] = solver.home[b * 3 + 1];
+    B[e * 3 + 2] = solver.home[b * 3 + 2];
+    N[e * 2] = a;
+    N[e * 2 + 1] = b;
+    K[e] = solver.ekind[e] === STRUT_KIND ? 1 : 0;
+  }
+  inst.setAttribute('iA', new THREE.InstancedBufferAttribute(A, 3));
+  inst.setAttribute('iB', new THREE.InstancedBufferAttribute(B, 3));
+  inst.setAttribute('iNodes', new THREE.InstancedBufferAttribute(N, 2));
+  inst.setAttribute('iKind', new THREE.InstancedBufferAttribute(K, 1));
+  inst.instanceCount = m;
+  inst.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 2.2);
+  return inst;
+}
+
+/* ============================================================
+   Acupuncture schematic channels — dashed jade polylines.
+
+   Partial segments between the atlas points of the SAME named
+   meridian only, and always captioned: "schematic teaching channel
+   — not a tissue in this model." They are diagram ink, not anatomy:
+   dashed, unlit, and they vanish with the overlay.
+   ============================================================ */
+
+export function channelDashMaterial() {
+  return new THREE.LineDashedMaterial({
+    // brighter than the marker jade: 1-px diagram ink needs the contrast
+    color: 0x6fe6b8,
+    transparent: true,
+    opacity: 0.95,
+    dashSize: 0.016,
+    gapSize: 0.012,
+    depthWrite: false,
+    depthTest: false,
   });
 }
 

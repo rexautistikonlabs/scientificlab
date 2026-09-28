@@ -3674,3 +3674,39 @@ body.atlas-deep .panel-left, body.atlas-deep .panel-right { opacity: 0.94; }
   padding: 2px 8px;
   color: var(--ink-2);
 }
+
+/* ============================================================
+   Contrast pass: chrome must read over both dark and pale scenes
+   ============================================================ */
+
+/* viewport title line gets the same paper chip as the subtitle */
+.vp-title b {
+  display: inline-block;
+  background: rgba(244, 239, 228, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 10px;
+  text-shadow: none;
+}
+
+/* scale readout on a paper chip instead of glow text */
+body .scalebar {
+  color: var(--ink-2);
+  text-shadow: none;
+  background: rgba(244, 239, 228, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 3px 9px;
+}
+.scalebar .sb-line, .scalebar .sb-line i { border-color: var(--ink-3); background: var(--ink-3); }
+
+/* callouts: crisper edge over pale tissue */
+.callout { border-color: rgba(94, 84, 60, 0.45); box-shadow: 0 8px 24px -10px rgba(40, 34, 20, 0.55); }
+
+/* when the analysis panes are collapsed the side panels may use the height */
+body.panes-collapsed .panel {
+  max-height: calc(100% - var(--top-h) - var(--step-h) - 64px);
+}
+
+/* channel caption inherits panel note styling; give it the jade cue */
+.ovl-channel-note { border-left: 2px solid #4fb38b; padding-left: 8px; }

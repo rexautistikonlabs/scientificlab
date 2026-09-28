@@ -413,6 +413,7 @@ untouched, and none of these terms exists on the Low tier's cost path (see the t
 | Signal beads drawn | 540 | 960 | 1 500 | 1 920 |
 | Efferent beads drawn | 256 | 448 | 704 | 896 |
 | Teaching-overlay markers | 69 instanced symbols at every tier (CPU-anchored, hidden past the tissue tier) | | | |
+| Network cables | 469 instanced camera-facing ribbons; endpoints, width and the amber→copper ramp all read from the field texture, so the overlay costs zero per-frame CPU and fades out past the tissue tier | | | |
 | Suits | integrated graphics, older laptops, software rendering | recent integrated graphics, mid-range laptops | discrete GPUs, Apple silicon | modern discrete GPUs, high-DPI displays |
 
 Tension colouring, rim lighting, force propagation, the signal streams and the living physiology are
@@ -644,6 +645,11 @@ animation and no treatment copy. The massage “demonstration” button applies 
 temporary, labelled restriction through the same intervention path as the
 manual tools — gated by the intervention capability, listed in the applied-load
 list like any other load, and removed by one click.
+
+The acupuncture set also draws dashed jade **schematic teaching channels —
+not a tissue in this model** (the caption every channel surface carries):
+partial segments only, and only between shipped atlas points of the same
+named meridian (LI, BL, GB per side), so no path is invented.
 
 `CONTINUUM.api.setOverlay(null | 'innervation' | 'chiropractic' | 'acupuncture'
 | 'massage' | 'all-teaching-points')` drives it programmatically; dataset

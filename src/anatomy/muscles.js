@@ -20,12 +20,12 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const MUSCLE = {
   color: 0xb8434e,
   opacity: 0.9,
-  /* Wetter and more fibrous than the first pass: living muscle under a lamp is
-     glossy along the fascicles, and the striation is what says which way the
-     belly pulls. The stripe count is per girth, not per length — see the fibre
-     note in materials.js. */
-  rough: 0.5,
-  spec: 0.3,
+  /* Atlas-plate register, not an operating theatre: form comes from the rig
+     and the fibre striation — the cheap anisotropy cue that says which way the
+     belly pulls — with the specular held to a restrained sheen. The stripe
+     count is per girth, not per length; see the fibre note in materials.js. */
+  rough: 0.56,
+  spec: 0.22,
   rim: 0.4,
   stripe: 0.58,
   stripeFreq: 64,

@@ -313,6 +313,19 @@ const TISSUE_FRAG = /* glsl */ `
       alpha = clamp(alpha + uHover * 0.16, 0.0, 1.0);
     }
 
+    /* Anatomical section rim. The front of the depth slab fades tissue open;
+       the surviving edge gets a thin lightened, slightly desaturated band so
+       the cut reads as a specimen's section face rather than a shader gash.
+       Confined to a narrow shell just past the fade-out, and costs two
+       smoothsteps only while the slab is active. */
+    if (uCutDist > 0.0) {
+      float rel = camDist / uCutDist;
+      float band = smoothstep(1.14, 1.22, rel) * (1.0 - smoothstep(1.24, 1.4, rel));
+      vec3 sectionTone = mix(albedo, vec3(0.86, 0.80, 0.72), 0.45) * 1.25;
+      col = mix(col, sectionTone, band * 0.5);
+      alpha = clamp(alpha + band * 0.18 * uOpacity, 0.0, 1.0);
+    }
+
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(col, alpha);
     #include <colorspace_fragment>

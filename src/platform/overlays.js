@@ -37,6 +37,7 @@ import {
   OVERLAY_COLORS,
   overlayMarkerMaterial,
   markerHaloMaterial,
+  channelDashMaterial,
   chiroGeometry,
   acuGeometry,
   massageGeometry,
@@ -67,6 +68,20 @@ const BASE_SIZE = { chiropractic: 0.008, acupuncture: 0.0062, massage: 0.011 };
 /** Markers hide inward of here (they are body-scale teaching chrome). */
 const HIDE_TIER = 3.35;
 
+/** The caption every channel line carries, verbatim. */
+export const CHANNEL_CAPTION = 'schematic teaching channel — not a tissue in this model';
+
+/* Dashed schematic channel segments: ONLY between shipped atlas points of the
+   same named meridian, so no path is invented. Diagram ink, not anatomy. */
+const ACU_CHANNELS = [
+  { meridian: 'LI', points: ['acu-li4-l', 'acu-li11-l'] },
+  { meridian: 'LI', points: ['acu-li4-r', 'acu-li11-r'] },
+  { meridian: 'BL', points: ['acu-bl40-l', 'acu-bl23-l'] },
+  { meridian: 'BL', points: ['acu-bl40-r', 'acu-bl23-r'] },
+  { meridian: 'GB', points: ['acu-gb21-l', 'acu-gb20-l'] },
+  { meridian: 'GB', points: ['acu-gb21-r', 'acu-gb20-r'] },
+];
+
 export class TeachingOverlays {
   constructor({ registry, solver, store, scene }) {
     this.registry = registry;
@@ -88,6 +103,9 @@ export class TeachingOverlays {
       this._resolveSystem(sysId, set);
       this._buildMesh(sysId);
     }
+
+    /* dashed schematic channels for the acupuncture set */
+    this._buildChannels();
 
     /* selected-point halo */
     this.halo = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.5, 40), markerHaloMaterial(0xffffff));
@@ -150,6 +168,52 @@ export class TeachingOverlays {
     mesh.userData.overlaySystem = sysId;
     this.group.add(mesh);
     this.meshes[sysId] = mesh;
+  }
+
+  _buildChannels() {
+    this.channels = [];
+    const byId = new Map();
+    (this.resolved.acupuncture || []).forEach((it) => byId.set(it.point.id, it));
+    const group = new THREE.Group();
+    group.name = 'acuChannels';
+    for (const ch of ACU_CHANNELS) {
+      const items = ch.points.map((id) => byId.get(id)).filter(Boolean);
+      if (items.length < 2) continue; // a missing point is reported, never bridged
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(items.length * 3), 3));
+      geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 2.2);
+      const line = new THREE.Line(geom, channelDashMaterial());
+      line.frustumCulled = false;
+      line.renderOrder = 23;
+      line.name = `channel:${ch.meridian}`;
+      line.userData.caption = CHANNEL_CAPTION;
+      group.add(line);
+      this.channels.push({ line, items });
+    }
+    this.channelGroup = group;
+    this.group.add(group);
+  }
+
+  _updateChannels() {
+    const on = this.store.teachingOverlays.has('acupuncture');
+    this.channelGroup.visible = on;
+    if (!on) return;
+    const s = this.solver;
+    for (const ch of this.channels) {
+      const pos = ch.line.geometry.getAttribute('position');
+      for (let i = 0; i < ch.items.length; i++) {
+        const it = ch.items[i];
+        const n = it.node;
+        pos.setXYZ(
+          i,
+          it.base.x + (s.pos[n * 3] - s.home[n * 3]),
+          it.base.y + (s.pos[n * 3 + 1] - s.home[n * 3 + 1]),
+          it.base.z + (s.pos[n * 3 + 2] - s.home[n * 3 + 2])
+        );
+      }
+      pos.needsUpdate = true;
+      ch.line.computeLineDistances();
+    }
   }
 
   /* ---------------- state ---------------- */
@@ -240,6 +304,8 @@ export class TeachingOverlays {
       scl.needsUpdate = true;
       fad.needsUpdate = true;
     }
+
+    this._updateChannels();
 
     /* halo follows the selected point */
     if (this.selected) {

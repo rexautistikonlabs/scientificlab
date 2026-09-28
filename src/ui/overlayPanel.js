@@ -60,6 +60,15 @@ export class OverlayPanel {
     dens.appendChild(slider);
     h.appendChild(dens);
 
+    /* channel caption — shown only while the acupuncture set is on */
+    this.channelNote = make(
+      'p',
+      'pnote ovl-channel-note',
+      'Dashed jade lines are partial <b>schematic teaching channels — not a tissue in this model</b>, drawn only between the atlas points of the same named meridian.'
+    );
+    this.channelNote.hidden = true;
+    h.appendChild(this.channelNote);
+
     /* point list */
     this.listEl = make('div', 'ovl-list');
     h.appendChild(this.listEl);
@@ -90,6 +99,7 @@ export class OverlayPanel {
     if (!this.host) return;
     const active = this.store.teachingOverlays;
     for (const [sysId, chip] of this.chips) chip.classList.toggle('on', active.has(sysId));
+    if (this.channelNote) this.channelNote.hidden = !active.has('acupuncture');
 
     /* list points of active systems, capped for panel sanity */
     this.listEl.innerHTML = '';
