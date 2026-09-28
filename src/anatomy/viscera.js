@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { blob, loft, tube, spline, sample, merge, place } from './build.js';
 import { lerp, TAU } from '../core/util.js';
+import { FIG } from './figure.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -297,6 +298,64 @@ export function buildViscera(ctx) {
       },
     });
 
+    /* ---------------- reproductive viscera — figure-specific ----------------
+       Present only on the owning figure, so their IDs exist only in that
+       figure's manifest. Notes are mechanical (suspension, support), never
+       clinical. Schematic teaching forms, like every organ here. */
+    if (FIG.viscera === 'female') {
+      const uterus = place(blob(0.024, 0.03, 0.02, 12, 2.3), { pos: [0, 0.962, 0.012], rot: [0.5, 0, 0] });
+      add({
+        key: 'organ:uterus',
+        layer: 'organ',
+        name: 'Uterus',
+        latin: 'uterus',
+        group: 'Pelvic viscera',
+        region: 'pelvic',
+        geometry: uterus,
+        material: mat({ ...ORG, color: 0xc06a78, opacity: 0.82 }),
+        center: V(0, 0.962, 0.012),
+        span: 0.1,
+        physio: 'visceral',
+        info: {
+          note:
+            'Slung between bladder and rectum by the broad and round ligaments — its position is an outcome of ligament tension and pelvic-floor support, and it moves with the breath like every other pelvic organ.',
+        },
+      });
+      for (const s of [1, -1]) {
+        const tag = s > 0 ? 'L' : 'R';
+        add({
+          key: `organ:ovary:${tag}`,
+          layer: 'organ',
+          name: `Ovary · ${s > 0 ? 'left' : 'right'}`,
+          latin: 'ovarium',
+          group: 'Pelvic viscera',
+          region: 'pelvic',
+          side: s,
+          geometry: place(blob(0.01, 0.014, 0.008, 10), { pos: [s * 0.036, 0.968, 0.004] }),
+          material: mat({ ...ORG, color: 0xd18a8a, opacity: 0.85 }),
+          center: V(s * 0.036, 0.968, 0.004),
+          span: 0.06,
+          physio: 'visceral',
+          info: { note: 'Suspended in the broad ligament lateral to the uterus.' },
+        });
+      }
+    } else {
+      add({
+        key: 'organ:prostate',
+        layer: 'organ',
+        name: 'Prostate',
+        latin: 'prostata',
+        group: 'Pelvic viscera',
+        region: 'pelvic',
+        geometry: place(blob(0.017, 0.014, 0.016, 10), { pos: [0, 0.926, 0.024] }),
+        material: mat({ ...ORG, color: 0xc08a6a, opacity: 0.85 }),
+        center: V(0, 0.926, 0.024),
+        span: 0.06,
+        physio: 'visceral',
+        info: { note: 'Sits on the pelvic floor immediately below the bladder neck; its position tracks floor tone.' },
+      });
+    }
+
     // pelvic floor
     {
       const g = new THREE.BufferGeometry();
@@ -309,7 +368,9 @@ export function buildViscera(ctx) {
         const a = (i / nu) * TAU;
         for (let j = 0; j <= nv; j++) {
           const v = j / nv;
-          const r = lerp(0.062, 0.006, v);
+          // figure: the female figure's pelvic outlet — and so the floor it
+          // slings — spans wider (geometry only; same receptors, same physics)
+          const r = lerp(0.062 * FIG.pelvicFloorSpan, 0.006, v);
           verts.push(Math.sin(a) * r * 0.92, 0.906 - (1 - v) * 0.0 - v * 0.016, Math.cos(a) * r + 0.002);
           uvs.push(i / nu, v);
         }

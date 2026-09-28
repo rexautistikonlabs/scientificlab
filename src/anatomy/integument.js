@@ -13,7 +13,8 @@
 
 import * as THREE from 'three';
 import { loft, merge, blob, place } from './build.js';
-import { trunkAxis } from './landmarks.js';
+import { trunkAxis, trunkSurface } from './landmarks.js';
+import { FIG } from './figure.js';
 import { legStations, armStations, limbSleeve } from './fascia.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -92,6 +93,38 @@ export function buildIntegument(ctx) {
         'Fat lobules held in fibrous septa, so it behaves as a structured composite rather than a soft pad. Its thickness sets how much of an external load actually reaches the deep fascia.',
     },
   });
+
+  /* ---------------- breast volume — female figure ----------------
+     Two schematic superficial forms seated on the chest wall. Skin-layer
+     structures like the rest of the integument: same receptors classes, same
+     mechanics, present only in the female figure's manifest. */
+  if (FIG.breasts) {
+    for (const s of [1, -1]) {
+      const tag = s > 0 ? 'L' : 'R';
+      const base = trunkSurface(1.275, s * 0.42, 0.004);
+      add({
+        key: `skin:breast:${tag}`,
+        layer: 'skin',
+        name: `Breast · ${s > 0 ? 'left' : 'right'}`,
+        latin: 'mamma',
+        group: 'Integument',
+        region: 'thoracic',
+        side: s,
+        geometry: place(blob(0.048, 0.052, 0.04, q.high ? 16 : 12, 2.2), {
+          pos: [base.x, base.y - 0.012, base.z + 0.02],
+          rot: [0.25, 0, s * -0.08],
+        }),
+        material: mat({ ...SKIN, opacity: 0.5, mode: 'solid', doubleSide: false, rim: 0.5 }),
+        center: V(base.x, base.y - 0.012, base.z + 0.02),
+        span: 0.12,
+        opacityFactor: 1.6,
+        info: {
+          note:
+            'Superficial-fascia structure: glandular and adipose tissue in the fibrous septa of the superficial layer, resting on the pectoral fascia and moving with it.',
+        },
+      });
+    }
+  }
 
   /* ---------------- limb sleeves ---------------- */
   for (const s of [1, -1]) {

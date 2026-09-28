@@ -20,6 +20,7 @@ import { el, make, clamp } from '../core/util.js';
 import { SCALES, TOOLS, LAYER_STACK } from '../core/store.js';
 import { RECEPTORS, RECEPTOR_ORDER } from '../anatomy/info.js';
 import { TEACHING_SYSTEMS } from '../platform/overlays.js';
+import { FIG, FIGURES, setFigureId } from '../anatomy/figure.js';
 import { entitlements } from '../platform/entitlements.js';
 
 /** Scale-dependent viewport subtitles — where the camera actually is. */
@@ -299,6 +300,21 @@ export class AtlasShell {
     this._chip('Reset view', 'Reset visibility and camera (R)', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
     });
+    /* figure choice — geometry is built at boot, so switching rebuilds via
+       reload, exactly like the quality tier's geometry rebuild */
+    for (const f of Object.values(FIGURES)) {
+      this._chip(
+        `${f.label} figure`,
+        `Rebuild as the ${f.label.toLowerCase()} anatomical teaching figure. Gross anatomy differs (pelvis, pectoral/breast volume, reproductive viscera); the mechanics, receptors and physiology models are identical.`,
+        () => {
+          if (f.id === FIG.id) return;
+          setFigureId(f.id);
+          this.hud.toast(`Rebuilding as the <b>${f.label}</b> teaching figure…`, 2200);
+          setTimeout(() => location.reload(), 900);
+        },
+        { on: FIG.id === f.id }
+      );
+    }
   }
 
   _rowLayer() {
@@ -430,6 +446,11 @@ export class AtlasShell {
       session: el('#ss-session'),
     };
     this.ss.session.textContent = this._session;
+    const fig = el('#ss-figure');
+    if (fig) {
+      fig.textContent = FIG.label;
+      fig.title = 'Anatomical teaching figure. Mechanics, receptors and physiology are identical for both figures.';
+    }
     this.panesEl = el('#atlas-panes');
     el('#btn-panes').addEventListener('click', () => {
       this._userPref = this.panesEl.classList.contains('collapsed') ? 'open' : 'closed';

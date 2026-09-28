@@ -31,6 +31,7 @@ import { Physiology } from './sim/physiology.js';
 import { Afferent } from './sim/afferent.js';
 import { Efferent } from './sim/efferent.js';
 import { TeachingOverlays, TEACHING_SYSTEMS } from './platform/overlays.js';
+import { FIG, FIGURES, setFigureId } from './anatomy/figure.js';
 import { buildBody } from './anatomy/index.js';
 import { setReceptorDensity } from './anatomy/receptors.js';
 import { buildMicroAnatomy } from './anatomy/microanatomy.js';
@@ -423,6 +424,7 @@ async function main() {
       },
       state: {
         tier: entitlements.tier,
+        figure: FIG.id,
         scaleTier: +scales.tier.toFixed(2),
         visibleLayers: [...store.layers.values()].filter((l) => store.effectiveOpacity(l.id) > 0.004).map((l) => l.id),
         overlay: props.activeOverlay?.id || null,
@@ -1573,6 +1575,12 @@ async function main() {
       applyPathology: (p) => props.applyPathology(p, store),
       clearPathology: (p) => props.clearPathology(p, store),
       setTier: (t) => entitlements.setTier(t),
+      /* Anatomical teaching figure. Geometry is built at boot, so setFigure
+         persists the choice and reports that a reload rebuilds — it never
+         reloads on its own. Figure-specific IDs exist only in the owning
+         figure's manifest; shared IDs are identical on both. */
+      figure: () => ({ id: FIG.id, label: FIG.label, figures: Object.keys(FIGURES) }),
+      setFigure: (id) => (setFigureId(id) ? { ok: true, reloadRequired: true } : { ok: false, reason: 'unknown figure' }),
       capabilities: () => Object.keys(CAP_NAMES).map((k) => ({ id: k, granted: entitlements.can(k) })),
       /* The entitlement seam. A host that already knows who the user is and what
          they have bought calls applyClaim and nothing else — every gate in the

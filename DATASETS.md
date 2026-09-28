@@ -59,7 +59,7 @@ use for the same honesty.
 Resolution is attempted in this order, per key:
 
 1. **Canonical ID** — `MUSCLE_TRAPEZIUS_L`, exactly as in the manifest
-   (`CONTINUUM.api.manifest()` lists all 1 740).
+   (`CONTINUUM.api.manifest()` lists the current figure's set — 1 745 female / 1 741 male over a shared 1 740-ID base).
 2. **Alias** — accepted spellings resolve to the same structure:
    `FASCIA_DEEP_CERVICAL` → `FASCIA_CERVICAL_DEEP`, `ORGAN_DIAPHRAGM` →
    `MUSCLE_DIAPHRAGM`. Your vocabulary does not have to match ours.

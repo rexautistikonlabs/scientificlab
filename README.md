@@ -150,11 +150,20 @@ materials or the solver's inner loop.
 
 Every selectable structure has a permanent identifier derived from its semantic build key —
 `BONE_FEMUR_L`, `MUSCLE_BICEPS_BRACHII_R`, `FASCIA_CERVICAL_DEEP`, `ORGAN_HEART` — plus one per
-individual receptor ending, `RECEPTOR_PACINIAN_PLANTAR_L_01`. **1 740 IDs**: 271 structures and
+individual receptor ending, `RECEPTOR_PACINIAN_PLANTAR_L_01`. **A shared 1 740-ID base**: 271 structures and
 1 469 individually addressable endings. IDs are derived rather than authored, so they cannot drift
 when builders are reordered or geometry is retessellated, and a manifest hash detects it if they
 ever do. Aliases mean external data need not match our spelling: `FASCIA_DEEP_CERVICAL` and
 `ORGAN_DIAPHRAGM` resolve to the same structures as the canonical forms.
+
+Each teaching figure carries its own manifest over that shared base: the **female figure is 1 745 IDs**
+(hash `288b17ed` — adds `ORGAN_UTERUS`, `ORGAN_OVARY_L/R`, `SKIN_BREAST_L/R`) and the **male figure is
+1 741 IDs** (hash `0d7f2bb1` — adds `ORGAN_PROSTATE`). Shared IDs are identical on both figures; data
+keyed to a structure the current figure lacks reports as unresolved rather than snapping to a different
+landmark. The figures differ in gross drawn anatomy only — pelvis flare and pubic arch, femoral bow,
+pectoral and breast volume, pelvic-floor span, reproductive viscera. The tension network, its 166 nodes,
+the receptor fields and every afferent/efferent/physiology constant are identical for both: anatomical
+teaching figures, not a claim about sex differences in any research construct.
 
 Because identity is the contract, everything downstream composes without engine changes:
 
@@ -294,7 +303,7 @@ below for the production substitution.
 
 ### Budget
 
-271 selectable structures · 1 740 anatomical IDs · 166 network nodes · 469 elements · ~246 draw
+271 shared selectable structures · 1 741–1 745 anatomical IDs by figure · 166 network nodes · 469 elements · ~246 draw
 calls and ~161 k triangles per frame · 13 shader programs · 241 geometries · 6 textures. One
 ~236 kB gzipped bundle including three.js, plus the bundled research datasets as static JSON. No
 runtime downloads otherwise. Over 20 s of continuous

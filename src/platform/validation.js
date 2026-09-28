@@ -85,7 +85,7 @@ export const VALIDATION_ROWS = [
     target: 'Structure positions and proportions checked against a named anatomical reference.',
     status: 'partial',
     evidence:
-      '271 structures + 1 469 receptor endings, procedurally generated, 1740 IDs with manifest hash 238ca549. ' +
+      '271 shared structures + 1 469 receptor endings, procedurally generated. One manifest per teaching figure over a shared 1740-ID base: female 1745 IDs (hash 288b17ed, adds ORGAN_UTERUS, ORGAN_OVARY_L/R, SKIN_BREAST_L/R), male 1741 IDs (hash 0d7f2bb1, adds ORGAN_PROSTATE). ' +
       'Proportions are asserted in prose; no per-structure provenance field exists.',
     next: 'Record a reference per system, or state plainly that geometry is illustrative rather than metric.',
   },

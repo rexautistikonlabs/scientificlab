@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { muscleBelly, spline, sample, merge } from './build.js';
 import { LM, side, ribPoints, trunkSurface } from './landmarks.js';
+import { FIG } from './figure.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -481,7 +482,9 @@ export function buildMuscles(ctx) {
         // a flattened belly is a wide sheet: it needs more radial segments than a
         // round one or the silhouette facets show
         const flat = m.flat ?? 1;
-        geom = muscleBelly(pts, m.r, {
+        // figure: pectoral volume differs between the teaching figures
+        const rr = m.id === 'pectoralis' ? m.r * FIG.pectoral : m.r;
+        geom = muscleBelly(pts, rr, {
           radial: Math.round((q.high ? 16 : 9) + flat * (q.high ? 5 : 3)),
           flat,
           peak: m.peak ?? 0.45,

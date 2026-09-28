@@ -416,8 +416,8 @@ browser:
 - **Gating.** Free tier cannot reach the mode by any of four routes.
 - **No regressions.** Deterministic physics output byte-identical to the previous
   build (the only lines that differ are breath-phase-dependent samples, which
-  differ identically between two runs of the *same* build). Manifest 1740 IDs,
-  signature `238ca549`. Telemetry split, overlay gates, project round-trip and
+  differ identically between two runs of the *same* build). Manifest per figure over the shared 1740-ID base
+  (female 1745 / `288b17ed`, male 1741 / `0d7f2bb1`). Telemetry split, overlay gates, project round-trip and
   dataset validation all unchanged. Zero console errors.
 - **Copy.** No organisational branding, no claim of visual equivalence to real
   microscopy, no affirmative clinical claim anywhere in the UI text.

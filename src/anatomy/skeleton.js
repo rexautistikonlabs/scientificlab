@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { loft, tube, spline, sample, merge, place, blob } from './build.js';
 import { VERTEBRAE, LM, side, ribPoints } from './landmarks.js';
+import { FIG } from './figure.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
@@ -374,15 +375,20 @@ export function buildSkeleton(ctx) {
       const bow = Math.sin(u * Math.PI) * Math.sin(v * Math.PI) * 0.02;
       out.x += s * bow * 0.7;
       out.z += bow * 0.35;
+      /* figure: pelvic flare — the crest fans wider on the female figure, easing
+         to nothing at the acetabulum so the hip joint stays on the shared
+         network landmark (drawn geometry only; the solver never moves) */
+      out.x *= 1 + (FIG.pelvisFlare - 1) * (1 - v);
     };
     for (const off of [-0.0035, 0.0035]) parts.push(sheetPlate(ilium, off, s, 12, 8));
-    // ischiopubic ramus
+    // ischiopubic ramus — the pubic arch widens with the figure's outlet
+    const pw = FIG.pubicWiden;
     const ramus = spline([
       side(LM.hipJoint, s),
-      V(s * 0.07, 0.882, -0.036),
-      side(LM.ischium, s),
-      V(s * 0.046, 0.9, 0.014),
-      V(s * 0.016, 0.928, 0.046),
+      V(s * 0.07 * pw, 0.882, -0.036),
+      V(side(LM.ischium, s).x * pw, LM.ischium.y, LM.ischium.z),
+      V(s * 0.046 * pw, 0.9, 0.014),
+      V(s * 0.016 * pw, 0.928, 0.046),
     ]);
     parts.push(tube(sample(ramus, 14), () => 0.0095, 8));
     // acetabular rim
@@ -479,7 +485,16 @@ export function buildSkeleton(ctx) {
   for (const s of [1, -1]) {
     const tag = s > 0 ? 'L' : 'R';
     for (const b of longBones) {
-      const pts = sample(spline(b.pts(s)), q.high ? 20 : 14);
+      const raw = b.pts(s);
+      /* figure: femoral bow — the female figure's shaft angles slightly more
+         medially between the shared hip and knee landmarks (endpoints fixed) */
+      if (b.id === 'femur' && FIG.femurBowExtra > 0) {
+        for (let i = 1; i < raw.length - 1; i++) {
+          const t = i / (raw.length - 1);
+          raw[i].x -= s * FIG.femurBowExtra * Math.sin(t * Math.PI);
+        }
+      }
+      const pts = sample(spline(raw), q.high ? 20 : 14);
       add({
         key: `bone:${b.id}:${tag}`,
         layer: 'bone',
