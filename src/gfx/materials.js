@@ -315,12 +315,12 @@ const TISSUE_FRAG = /* glsl */ `
 
     if (uHighlight > 0.001) {
       float band = smoothstep(0.42, 0.5, abs(fract(vUv.y * 2.0 - uTime * 0.35) - 0.5));
-      vec3 hi = mix(vec3(0.35, 0.94, 1.0), vec3(1.0), 0.25);
+      vec3 hi = mix(vec3(0.72, 0.78, 0.52), vec3(1.0, 0.99, 0.92), 0.3); // phosphor, cyan retired
       col += hi * uHighlight * (0.55 + 0.85 * fres + 0.3 * band);
       alpha = clamp(alpha + uHighlight * 0.42, 0.0, 1.0);
     }
     if (uHover > 0.001) {
-      col += vec3(0.6, 0.9, 1.0) * uHover * (0.2 + 0.6 * fres);
+      col += vec3(0.77, 0.79, 0.66) * uHover * (0.2 + 0.6 * fres); // phosphor-2 hover, cyan retired
       alpha = clamp(alpha + uHover * 0.16, 0.0, 1.0);
     }
 
@@ -362,7 +362,7 @@ const BASE_UNIFORMS = () => ({
   uXray: { value: 0.0 },
   uXrayFloor: { value: 0.07 },
   uOverlay: { value: 0.0 },
-  uOverlayColor: { value: new THREE.Color(0x4fd6e0) },
+  uOverlayColor: { value: new THREE.Color(0x8f9a6e) }, // default only; datasets set their own ramp (teal retired)
   uSSS: { value: 0.0 },
   uCamPos: GLOBAL.uCamPos,
   tField: GLOBAL.tField,
@@ -909,13 +909,13 @@ export function backdrop() {
       void main(){
         vec3 d = normalize(vP);
         float h = d.y * 0.5 + 0.5;
-        vec3 top = vec3(0.008, 0.013, 0.022);
-        vec3 mid = vec3(0.016, 0.024, 0.036);
-        vec3 bot = vec3(0.003, 0.005, 0.009);
+        vec3 top = vec3(0.012, 0.013, 0.010);
+        vec3 mid = vec3(0.022, 0.024, 0.018);
+        vec3 bot = vec3(0.006, 0.007, 0.005);
         vec3 c = mix(bot, mid, smoothstep(0.0, 0.52, h));
         c = mix(c, top, smoothstep(0.5, 1.0, h));
         // faint cool pool behind the figure
-        c += vec3(0.012, 0.028, 0.042) * pow(max(0.0, -d.z), 5.0);
+        c += vec3(0.020, 0.024, 0.013) * pow(max(0.0, -d.z), 5.0); // faint phosphor pool, teal retired
         gl_FragColor = vec4(c, 1.0);
       }
     `,
@@ -948,9 +948,9 @@ export function groundPad() {
         // measurement rings, so the ground reads as an instrument stage
         float ring = smoothstep(0.014, 0.0, abs(fract(r * 5.0) - 0.5) - 0.47);
         float sweep = smoothstep(0.05, 0.0, abs(fract(r * 5.0 - uTime * 0.06) - 0.5) - 0.45);
-        vec3 c = vec3(0.06, 0.19, 0.23) * fall * 0.4;
-        c += vec3(0.16, 0.42, 0.48) * ring * fall * 0.55;
-        c += vec3(0.20, 0.55, 0.62) * sweep * fall * 0.22;
+        vec3 c = vec3(0.12, 0.14, 0.08) * fall * 0.4;
+        c += vec3(0.34, 0.38, 0.26) * ring * fall * 0.55;
+        c += vec3(0.46, 0.50, 0.36) * sweep * fall * 0.22;
         gl_FragColor = vec4(c, (fall * 0.34 + ring * 0.3) * 0.85);
       }
     `,

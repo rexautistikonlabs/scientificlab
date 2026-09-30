@@ -112,7 +112,7 @@ async function main() {
 
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping; // handled in the composite pass
-  renderer.setClearColor(0x04060a, 1);
+  renderer.setClearColor(0x0b0c0a, 1); // --ink: the house room tone
   renderer.setPixelRatio(1); // the post chain owns resolution
   /* A frame is five or more render calls (scene, bright, four blurs, composite),
      and three.js resets its counters on every one of them. Without this the

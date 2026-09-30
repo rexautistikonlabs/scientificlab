@@ -342,7 +342,7 @@ export class NetworkOverlay {
       new THREE.PointsMaterial({
         size: 2.6,
         sizeAttenuation: false,
-        color: 0xbcd6e6,
+        color: 0xcdc8b4, // ivory node dots (pale blue retired)
         transparent: true,
         opacity: 0.75,
         depthWrite: false,

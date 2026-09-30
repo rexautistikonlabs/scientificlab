@@ -49,7 +49,7 @@ export class Measurements {
     this._pos = geom.getAttribute('position');
     this.lines = new THREE.LineSegments(
       geom,
-      new THREE.LineBasicMaterial({ color: 0x4fd6e0, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false })
+      new THREE.LineBasicMaterial({ color: 0xc5c9a8, transparent: true, opacity: 0.85, depthWrite: false, depthTest: false }) // phosphor-2 tool ink (teal retired)
     );
     this.lines.frustumCulled = false;
     this.lines.renderOrder = 30;

@@ -34,7 +34,7 @@ const METERS = [
     label: 'Network load',
     unit: '%',
     note: 'RMS tension, 100 % = resting pre-tension',
-    color: '#4fd6e0',
+    color: '#8f9a6e',
     hi: true,
     max: 220,
   },
@@ -62,7 +62,7 @@ const METERS = [
     label: 'Signal integrity',
     unit: '%',
     note: 'composite of fidelity, timing, bandwidth',
-    color: '#4fe0a0',
+    color: '#8f9a6e',
     hi: false,
   },
   {
@@ -70,7 +70,7 @@ const METERS = [
     label: 'Fidelity',
     unit: '%',
     note: 'event amplitude surviving the tissue',
-    color: '#4fe0a0',
+    color: '#8f9a6e',
     hi: false,
   },
   {
@@ -78,7 +78,7 @@ const METERS = [
     label: 'Added latency',
     unit: 'ms',
     note: 'delay beyond the healthy-tissue baseline',
-    color: '#ff8f6a',
+    color: '#c08a72',
     hi: true,
     max: 90,
     cap: 'telemetry.advanced',
@@ -88,7 +88,7 @@ const METERS = [
     label: 'Bandwidth',
     unit: '%',
     note: 'high-frequency content still arriving',
-    color: '#79e6cf',
+    color: '#c5c9a8',
     hi: false,
     cap: 'telemetry.advanced',
   },
@@ -122,7 +122,7 @@ const METERS = [
     label: 'Fluid transport',
     unit: '%',
     note: 'venous return and lymph drainage',
-    color: '#9fe86b',
+    color: '#a9b285',
     hi: false,
   },
 ];
@@ -415,7 +415,7 @@ export class Hud {
     m.val.innerHTML = `${display}<small>${m.def.unit}</small>`;
     // meters where "more" is bad warm up as they climb; where "more" is good, cool down as they fall
     const bad = m.def.hi ? pct / 100 : 1 - pct / 100;
-    m.fill.style.backgroundColor = bad > 0.78 ? '#ff6f52' : bad > 0.52 ? '#f0b429' : m.def.color;
+    m.fill.style.backgroundColor = bad > 0.78 ? '#a8654c' : bad > 0.52 ? '#f0b429' : m.def.color;
     if (note) m.note.textContent = note;
   }
 
@@ -508,7 +508,7 @@ export class Hud {
     if (!pop) return;
 
     /* grid */
-    c.strokeStyle = 'rgba(94,84,60,0.18)';
+    c.strokeStyle = 'rgba(232,224,210,0.12)';
     c.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
       const y = (H / 4) * i;
@@ -542,7 +542,7 @@ export class Hud {
     };
 
     // the mechanical event as it actually is, then what the ending receives
-    drawSeries(pop.idealTrace, 'rgba(60,66,74,0.5)', 1, 0.7);
+    drawSeries(pop.idealTrace, 'rgba(232,224,210,0.45)', 1, 0.7);
     drawSeries(pop.trace, pop.def.color, 1.6, 1);
 
     // firing tick marks along the top, at the current rate
@@ -671,7 +671,7 @@ export class Hud {
     const dpr = this._rasterDpr || 1;
     c.clearRect(0, 0, W, H);
 
-    c.strokeStyle = 'rgba(94,84,60,0.22)';
+    c.strokeStyle = 'rgba(232,224,210,0.16)';
     c.lineWidth = 1;
     c.beginPath();
     c.moveTo(0, H - 1);

@@ -617,7 +617,7 @@ export function registerReferenceData(props) {
     note:
       'Excursion available at the interface before tension rises. Loss of glide is the mechanical definition of restriction used by this model.',
     colorLow: '#ff6f52',
-    colorHigh: '#4fe0a0',
+    colorHigh: '#c5c9a8',
     values: {
       FASCIA_SUPERFICIAL_TRUNK: 18,
       FASCIA_SUPERFICIAL_LEG_L: 14,

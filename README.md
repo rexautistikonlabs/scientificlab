@@ -593,6 +593,10 @@ because the frame rate is.
 
 ## The atlas instrument (HUD)
 
+> Chrome colours are the RexMetrix house palette — charcoal ink, ivory type,
+> muted phosphor actions — defined as tokens in `src/styles.css` and documented
+> in `THEME.md`. House palette; math unchanged.
+
 The chrome is a paper instrument around a dark living scene — cream field,
 hairline rules, small-caps section titles, tabular figures. It is built from:
 

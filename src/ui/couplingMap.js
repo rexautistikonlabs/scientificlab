@@ -169,14 +169,15 @@ export class CouplingMap {
         const v = i === j ? this.dev[i] : Math.sqrt(Math.max(0, this.dev[i] * this.dev[j]));
         const t = clamp(v * 4.5, 0, 1);
         // paper → amber → copper: the locked tension ramp
-        const r0 = 238 - 20 * t, g0 = 231 - 110 * t, b0 = 220 - 165 * t;
+        // charcoal → amber → copper: rest cells sit on the card tone
+        const r0 = 32 + 190 * t, g0 = 33 + 90 * t, b0 = 26 + 28 * t;
         c.fillStyle = `rgb(${r0 | 0},${g0 | 0},${b0 | 0})`;
         c.fillRect(pad + i * cell, pad * 0.42 + j * cell, cell - 1 * dpr, cell - 1 * dpr);
       }
     }
 
     /* labels */
-    c.fillStyle = 'rgba(70,64,52,0.9)';
+    c.fillStyle = 'rgba(232,224,210,0.72)';
     for (let j = 0; j < n; j++) {
       c.textAlign = 'right';
       c.fillText(REGIONS[j].name, pad - 4 * dpr, pad * 0.42 + j * cell + cell / 2);

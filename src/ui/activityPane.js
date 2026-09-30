@@ -21,7 +21,7 @@ const SERIES = [
   { id: 'load', label: 'load', color: '#d9822b', get: (c) => c.solver.metrics.rms / Math.max(1e-6, c.solver.baseRms) },
   { id: 'afferent', label: 'afferent', color: '#39c2d7', get: (c) => clamp(c.afferent.summary.firing / 400, 0, 1.4) },
   { id: 'efferent', label: 'efferent', color: '#d7a13b', get: (c) => c.efferent.out.drive },
-  { id: 'fluid', label: 'fluid', color: '#9fe86b', get: (c) => (c.physio.out.venousReturn + c.physio.out.lymphFlow) / 2 },
+  { id: 'fluid', label: 'fluid', color: '#a9b285', get: (c) => (c.physio.out.venousReturn + c.physio.out.lymphFlow) / 2 },
 ];
 
 export class ActivityPane {
@@ -85,7 +85,7 @@ export class ActivityPane {
     const H = this.canvas.height;
     c.clearRect(0, 0, W, H);
 
-    c.strokeStyle = 'rgba(120,110,90,0.25)';
+    c.strokeStyle = 'rgba(232,224,210,0.12)';
     c.lineWidth = 1;
     for (let i = 1; i < 3; i++) {
       const y = (H / 3) * i;

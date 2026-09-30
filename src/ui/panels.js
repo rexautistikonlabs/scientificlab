@@ -810,7 +810,7 @@ export class Panels {
     if (keys.length > 1) {
       host.innerHTML = `
         <div class="insp-head">
-          <div class="insp-kicker"><i style="color:#4fd6e0"></i>${keys.length} structures selected</div>
+          <div class="insp-kicker"><i style="color:#8f9a6e"></i>${keys.length} structures selected</div>
           <h3 class="insp-title">Combined selection</h3>
         </div>
         <dl class="kv" id="insp-multi-kv"></dl>
@@ -1030,7 +1030,7 @@ export class Panels {
       // centre of the bar is rest; it fills right when loaded, left when slack
       const pct = clamp((dev + 1) / 2.6, 0, 1) * 100;
       bar.style.width = `${pct}%`;
-      bar.style.background = dev > 0.7 ? '#ff6f52' : dev > 0.2 ? '#f0b429' : dev < -0.2 ? '#5b83d6' : '#4fd6e0';
+      bar.style.background = dev > 0.7 ? '#a8654c' : dev > 0.2 ? '#f0b429' : dev < -0.2 ? '#5b83d6' : '#8f9a6e';
     }
 
     if (this._recRows) {
@@ -1042,7 +1042,7 @@ export class Panels {
         // absent when the advanced read-out is not licensed
         if (r.fid) {
           r.fid.textContent = `${(p.fidelity * 100).toFixed(0)} % · ${p.latency.toFixed(0)} ms`;
-          r.fid.style.color = p.fidelity < 0.6 ? '#ff6f52' : p.fidelity < 0.82 ? '#f0b429' : '#4fe0a0';
+          r.fid.style.color = p.fidelity < 0.6 ? '#c08a72' : p.fidelity < 0.82 ? '#f0b429' : '#8f9a6e';
         }
       }
     }
